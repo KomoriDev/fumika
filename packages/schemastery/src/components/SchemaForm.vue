@@ -37,6 +37,7 @@ let lastEmitted: unknown
 
 provide(schemaFormKey, {
   id: formId,
+  model: draft,
   issues,
   renderer,
   valid,

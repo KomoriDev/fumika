@@ -1,4 +1,5 @@
 import type { SchemaControlDefinition } from '@fumika/schemastery'
+import type { StateService } from '@fumika/state'
 import type { Context } from 'cordis'
 import type Schema from 'schemastery'
 import type { Component } from 'vue'
@@ -21,20 +22,21 @@ export interface SettingOptions {
 export class SettingModule {
   readonly entries = shallowReactive(new Map<string, SettingOptions>())
   private readonly fallback = shallowReactive(new Map<string, unknown>())
+  private readonly state = shallowRef<StateService>()
 
   constructor(public ctx: Context) {
     Object.defineProperty(this, Service.tracker, {
       value: { property: 'ctx' },
     })
 
-    const state = shallowRef(ctx.get('appState'))
+    this.state.value = ctx.appState
     ctx.effect(() => ctx.on('internal/service', (name) => {
       if (name === 'appState')
-        state.value = ctx.get('appState')
+        this.state.value = ctx.appState
     }, { global: true }))
 
     ctx.effect(() => watchEffect(() => {
-      const service = state.value
+      const service = this.state.value
       if (!service)
         return
       const app = service.data.app
@@ -88,15 +90,14 @@ export class SettingModule {
       .sort((left, right) => (left.order ?? 0) - (right.order ?? 0) || left.id.localeCompare(right.id))
   }
 
-  read(entry: SettingOptions): unknown {
-    const key = entry.stateKey ?? 'app'
-    const state = this.ctx.get('appState')
-    return state?.data[key] ?? this.fallback.get(key) ?? entry.initial
+  readState<T>(key: string, initial: T): T
+  readState<T = unknown>(key: string): T | undefined
+  readState<T>(key: string, initial?: T): T | undefined {
+    return (this.state.value?.data[key] ?? this.fallback.get(key) ?? initial) as T | undefined
   }
 
-  write(entry: SettingOptions, value: unknown): void {
-    const key = entry.stateKey ?? 'app'
-    const state = this.ctx.get('appState')
+  writeState(key: string, value: unknown): void {
+    const state = this.state.value
     if (!state) {
       this.fallback.set(key, value)
       return
@@ -104,6 +105,14 @@ export class SettingModule {
     state.mutate((data) => {
       data[key] = value
     })
+  }
+
+  read(entry: SettingOptions): unknown {
+    return this.readState(entry.stateKey ?? 'app', entry.initial)
+  }
+
+  write(entry: SettingOptions, value: unknown): void {
+    this.writeState(entry.stateKey ?? 'app', value)
   }
 }
 

@@ -18,11 +18,22 @@ export interface AppPreferences {
   desktopNotifications: boolean
 }
 
+export type SidebarShortcutIds = [string, string, string, string]
+
+export const DEFAULT_SIDEBAR_SHORTCUTS = [
+  'inbox',
+  'starred',
+  'sent',
+  'drafts',
+] satisfies SidebarShortcutIds
+
 export interface AppNamespaceState {
   locale: string
   theme: ThemeState
   sidebar: {
     open: boolean
+    showShortcuts: boolean
+    shortcuts: SidebarShortcutIds
   }
   preferences: AppPreferences
 }
@@ -41,6 +52,8 @@ export const DEFAULT_STATE: AppStateNamespaces = {
     },
     sidebar: {
       open: true,
+      showShortcuts: false,
+      shortcuts: [...DEFAULT_SIDEBAR_SHORTCUTS],
     },
     preferences: {
       messagePreviews: true,
@@ -153,6 +166,10 @@ export function resolveState(value: unknown): AppStateNamespaces {
       sidebar: {
         ...DEFAULT_STATE.app.sidebar,
         ...sidebar,
+        showShortcuts: typeof sidebar.showShortcuts === 'boolean'
+          ? sidebar.showShortcuts
+          : DEFAULT_STATE.app.sidebar.showShortcuts,
+        shortcuts: resolveSidebarShortcutIds(sidebar.shortcuts),
       },
       preferences: {
         ...DEFAULT_STATE.app.preferences,
@@ -160,6 +177,20 @@ export function resolveState(value: unknown): AppStateNamespaces {
       },
     },
   }
+}
+
+function resolveSidebarShortcutIds(value: unknown): SidebarShortcutIds {
+  if (!isSidebarShortcutIds(value))
+    return [...DEFAULT_SIDEBAR_SHORTCUTS]
+
+  return [value[0], value[1], value[2], value[3]]
+}
+
+function isSidebarShortcutIds(value: unknown): value is SidebarShortcutIds {
+  return Array.isArray(value)
+    && value.length === 4
+    && value.every(item => typeof item === 'string')
+    && new Set(value).size === value.length
 }
 
 function isRecord(value: unknown): value is Record<string, any> {

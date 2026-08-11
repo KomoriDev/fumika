@@ -7,6 +7,7 @@ declare global {
     interface Meta {
       label?: string | Readonly<Record<string, string>>
       flatten?: boolean
+      visible?: (value: unknown) => boolean
     }
   }
 }

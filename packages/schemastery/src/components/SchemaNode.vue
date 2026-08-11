@@ -69,6 +69,8 @@ if (!form)
 
 const touched = ref(false)
 const open = ref(!props.schema.meta.collapse)
+const visible = computed(() => !props.schema.meta.hidden
+  && (props.schema.meta.visible?.(form.model.value) ?? true))
 
 const type = computed(() => props.schema.type)
 const role = computed(() => props.schema.meta.role)
@@ -265,7 +267,7 @@ function isRecord(value: unknown): value is Record<string, any> {
 </script>
 
 <template>
-  <template v-if="schema.meta.hidden" />
+  <template v-if="!visible" />
 
   <SchemaNode
     v-else-if="type === 'transform' && innerSchema"

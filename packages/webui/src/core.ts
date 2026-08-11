@@ -1,6 +1,9 @@
 import type { Context } from 'cordis'
+import { DEFAULT_SIDEBAR_SHORTCUTS, DEFAULT_STATE } from '@fumika/state'
 import Schema from 'schemastery'
-import { mailFolderPattern } from './mail'
+import SidebarShortcutsControl from './components/SidebarShortcutsControl.vue'
+import { mailFolderLabels, mailFolderPattern, mailFolders } from './mail'
+import { resolveSidebarShortcuts } from './sidebar'
 import MailListView from './views/MailListView.vue'
 
 const GeneralSettings = Schema.object({
@@ -12,6 +15,13 @@ const GeneralSettings = Schema.object({
     .extra('label', { 'en-US': 'Language', 'zh-CN': '语言' })
     .extra('description', { 'en-US': 'Application language', 'zh-CN': '应用显示语言' }),
 })
+
+const SidebarShortcut = Schema.union(mailFolders.map(folder => Schema.const(folder)
+  .extra('description', { 'en-US': mailFolderLabels[folder], 'zh-CN': mailFolderLabels[folder] })))
+
+function showShortcutSettings(value: unknown): boolean {
+  return (value as { sidebar?: { showShortcuts?: unknown } } | undefined)?.sidebar?.showShortcuts === true
+}
 
 const AppearanceSettings = Schema.object({
   theme: Schema.object({
@@ -28,6 +38,24 @@ const AppearanceSettings = Schema.object({
       .default(true)
       .extra('label', { 'en-US': 'Expanded sidebar', 'zh-CN': '展开侧栏' })
       .extra('description', { 'en-US': 'Keep the navigation sidebar expanded', 'zh-CN': '默认保持导航侧栏展开' }),
+    showShortcuts: Schema.boolean()
+      .default(false)
+      .extra('label', { 'en-US': 'Show quick cards', 'zh-CN': '显示快捷卡片' })
+      .extra('description', {
+        'en-US': 'Show the configurable shortcut cards at the top of the sidebar.',
+        'zh-CN': '在侧栏顶部显示可配置的快捷卡片。',
+      }),
+    shortcuts: Schema.array(SidebarShortcut)
+      .min(4)
+      .max(4)
+      .default(resolveSidebarShortcuts(DEFAULT_SIDEBAR_SHORTCUTS))
+      .role('sidebar-shortcuts')
+      .extra('visible', showShortcutSettings)
+      .extra('label', { 'en-US': 'Quick cards', 'zh-CN': '快捷卡片' })
+      .extra('description', {
+        'en-US': 'Choose four mailboxes. Selecting one already shown swaps their positions.',
+        'zh-CN': '选择四个邮箱入口；选择已显示的入口时会交换两张卡片的位置。',
+      }),
   }).extra('flatten', true),
 })
 
@@ -68,12 +96,20 @@ export function installCore(ctx: Context): void {
     run: () => window.location.reload(),
   })
 
+  ctx.client.setting.control({
+    id: 'fumika/sidebar-shortcuts',
+    type: 'array',
+    role: 'sidebar-shortcuts',
+    component: SidebarShortcutsControl,
+  })
+
   ctx.client.setting.define({
     id: 'general',
     title: { 'en-US': 'General', 'zh-CN': '通用' },
     description: { 'en-US': 'Language and application defaults.', 'zh-CN': '语言与应用默认设置。' },
     order: 100,
     stateKey: 'app',
+    initial: DEFAULT_STATE.app,
     schema: GeneralSettings,
   })
 
@@ -83,6 +119,7 @@ export function installCore(ctx: Context): void {
     description: { 'en-US': 'Theme and workspace layout.', 'zh-CN': '主题和工作区布局。' },
     order: 200,
     stateKey: 'app',
+    initial: DEFAULT_STATE.app,
     schema: AppearanceSettings,
   })
 
@@ -92,6 +129,7 @@ export function installCore(ctx: Context): void {
     description: { 'en-US': 'Message list and notification behavior.', 'zh-CN': '邮件列表和通知行为。' },
     order: 300,
     stateKey: 'app',
+    initial: DEFAULT_STATE.app,
     schema: MailPreferences,
   })
 }

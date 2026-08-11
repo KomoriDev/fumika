@@ -4,6 +4,7 @@ import type { SchemaIssue, SchemaRenderer } from './registry'
 
 export interface SchemaFormContext {
   id: string
+  model: Ref<unknown>
   issues: Ref<SchemaIssue[]>
   renderer: SchemaRenderer
   valid: ComputedRef<boolean>

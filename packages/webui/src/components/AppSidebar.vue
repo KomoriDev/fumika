@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { DEFAULT_STATE } from '@fumika/state'
 import { Avatar, AvatarFallback } from '@fumika/ui/avatar'
 import {
   Sidebar,
@@ -13,29 +14,22 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from '@fumika/ui/sidebar'
-import { Archive, Clock3, FileText, Inbox, RotateCw, Send, Star, Trash2 } from '@lucide/vue'
 import { computed } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { useRuntimeInfo } from '@/composables/useRuntimeInfo'
 import { useContext } from '@/context'
 import { resolveMailFolder } from '@/mail'
+import { getSidebarMailbox, resolveSidebarShortcuts, sidebarMailboxes } from '@/sidebar'
 
-const ctx = useContext()
 const route = useRoute()
+const ctx = useContext()
 const { state } = useSidebar()
 const { statusMeta } = useRuntimeInfo()
+const appSettings = computed(() => ctx.client.setting.readState('app', DEFAULT_STATE.app))
 
-const mailboxes = [
-  { folder: 'inbox', label: 'Inbox', count: 7, icon: Inbox },
-  { folder: 'starred', label: 'Starred', count: 5, icon: Star },
-  { folder: 'snoozed', label: 'Snoozed', count: 2, icon: Clock3 },
-  { folder: 'sent', label: 'Sent', count: 0, icon: Send },
-  { folder: 'drafts', label: 'Drafts', count: 2, icon: FileText },
-  { folder: 'archive', label: 'Archive', count: 0, icon: Archive },
-  { folder: 'trash', label: 'Trash', count: 0, icon: Trash2 },
-] as const
-
-const shortcuts = [mailboxes[0], mailboxes[1], mailboxes[3]] as const
+const mailboxes = sidebarMailboxes
+const shortcuts = computed(() => resolveSidebarShortcuts(appSettings.value.sidebar.shortcuts)
+  .map(folder => getSidebarMailbox(folder)))
 
 const labels = [
   { value: 'work', label: 'Work', color: 'bg-violet-500' },
@@ -50,44 +44,30 @@ const activeLabel = computed(() => typeof route.query.label === 'string' ? route
 function isLabelActive(label: string) {
   return activeLabel.value === label
 }
-
-function reloadPage() {
-  void ctx.client.action.execute('navigation.reload')
-}
 </script>
 
 <template>
   <Sidebar collapsible="icon" class="top-9 bottom-0 h-auto border-r-0 bg-sidebar">
-    <SidebarHeader class="p-2">
-      <div class="grid gap-1.5" :class="collapsed ? 'grid-cols-1' : 'grid-cols-4'">
-        <SidebarMenuButton
-          v-for="item in shortcuts"
-          :key="item.folder"
-          as-child
-          variant="outline"
-          size="lg"
-          :is-active="activeFolder === item.folder && !activeLabel"
-          :tooltip="item.label"
-          class="sidebar-item aspect-square h-auto w-full justify-center rounded-xl border-transparent bg-black/4.5 p-0 shadow-none group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:rounded-lg"
-        >
-          <RouterLink :to="`/${item.folder}`" :aria-label="item.label">
-            <component :is="item.icon" />
-            <span class="sr-only">{{ item.label }}</span>
-          </RouterLink>
-        </SidebarMenuButton>
-
-        <SidebarMenuButton
-          variant="outline"
-          size="lg"
-          tooltip="Reload mail"
-          aria-label="Reload mail"
-          class="sidebar-item aspect-square h-auto w-full justify-center rounded-xl border-transparent bg-black/4.5 p-0 shadow-none group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:rounded-lg"
-          @click="reloadPage"
-        >
-          <RotateCw />
-          <span class="sr-only">Reload mail</span>
-        </SidebarMenuButton>
-      </div>
+    <SidebarHeader v-if="appSettings.sidebar.showShortcuts" class="p-2">
+      <k-slot name="sidebar:shortcuts" single>
+        <div class="grid gap-1.5" :class="collapsed ? 'grid-cols-1' : 'grid-cols-4'">
+          <SidebarMenuButton
+            v-for="item in shortcuts"
+            :key="item.folder"
+            as-child
+            variant="outline"
+            size="lg"
+            :is-active="activeFolder === item.folder && !activeLabel"
+            :tooltip="item.label"
+            class="sidebar-item aspect-square h-auto w-full justify-center rounded-xl border-transparent bg-black/4.5 p-0 shadow-none group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:rounded-lg"
+          >
+            <RouterLink :to="`/${item.folder}`" :aria-label="item.label">
+              <component :is="item.icon" />
+              <span class="sr-only">{{ item.label }}</span>
+            </RouterLink>
+          </SidebarMenuButton>
+        </div>
+      </k-slot>
     </SidebarHeader>
 
     <SidebarContent class="sidebar-scrollbar pt-1">
