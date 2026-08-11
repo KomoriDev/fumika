@@ -9,7 +9,6 @@ import ClientSlot from './components/slot'
 import { contextKey } from './context'
 import ActionModule from './plugins/action'
 import I18nModule from './plugins/i18n'
-import LoaderModule from './plugins/loader'
 import RouterModule from './plugins/router'
 import SettingModule from './plugins/setting'
 import ThemeModule from './plugins/theme'
@@ -26,7 +25,6 @@ export class ClientService extends Service {
   readonly app: VueApp
   readonly action: ActionModule
   readonly i18n: I18nModule
-  readonly loader: LoaderModule
   readonly router: RouterModule
   readonly setting: SettingModule
   readonly theme: ThemeModule
@@ -50,7 +48,6 @@ export class ClientService extends Service {
     this.action = new ActionModule(context)
 
     this.app.use(this.schemastery)
-    this.loader = new LoaderModule(context)
     this.theme = new ThemeModule(context)
     this.setting = new SettingModule(context)
     context.effect(() => () => this.unmount())

@@ -13,7 +13,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@fumika/contracts": "workspace:*",
     "@fumika/link": "workspace:*",
     "@fumika/schemastery": "workspace:*",
     "@fumika/state": "workspace:*",

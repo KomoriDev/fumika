@@ -86,7 +86,6 @@ export function installCore(ctx: Context): void {
     home: '/inbox',
     component: MailListView,
   })
-  ctx.client.loader.addEntry('runtime')
 
   ctx.client.action.register('navigation.back', () => ctx.client.router.router.back())
   ctx.client.action.register('navigation.forward', () => ctx.client.router.router.forward())

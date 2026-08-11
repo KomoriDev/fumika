@@ -20,7 +20,6 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@fumika/contracts": "workspace:*",
     "@fumika/link": "workspace:*",
     "@fumika/plugin-link-ipc": "workspace:*",
     "@fumika/plugin-state": "workspace:*",

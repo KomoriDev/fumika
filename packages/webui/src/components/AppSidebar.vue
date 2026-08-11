@@ -16,7 +16,6 @@ import {
 } from '@fumika/ui/sidebar'
 import { computed } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
-import { useRuntimeInfo } from '@/composables/useRuntimeInfo'
 import { useContext } from '@/context'
 import { resolveMailFolder } from '@/mail'
 import { getSidebarMailbox, resolveSidebarShortcuts, sidebarMailboxes } from '@/sidebar'
@@ -24,7 +23,6 @@ import { getSidebarMailbox, resolveSidebarShortcuts, sidebarMailboxes } from '@/
 const route = useRoute()
 const ctx = useContext()
 const { state } = useSidebar()
-const { statusMeta } = useRuntimeInfo()
 const appSettings = computed(() => ctx.client.setting.readState('app', DEFAULT_STATE.app))
 
 const mailboxes = sidebarMailboxes
@@ -132,7 +130,7 @@ function isLabelActive(label: string) {
 
     <fumika-slot name="sidebar:footer" />
     <SidebarFooter class="p-2">
-      <div class="relative flex min-w-0 items-center gap-2 rounded-xl p-2  group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0">
+      <div class="flex min-w-0 items-center gap-2 rounded-xl p-2 group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0">
         <Avatar size="sm">
           <AvatarFallback class="bg-neutral-900 text-[10px] font-semibold text-white">
             K
@@ -146,12 +144,6 @@ function isLabelActive(label: string) {
             komorebi@fumika.dev
           </p>
         </div>
-        <span
-          class="size-2 shrink-0 rounded-full ring-2 ring-sidebar group-data-[collapsible=icon]:absolute group-data-[collapsible=icon]:right-1 group-data-[collapsible=icon]:bottom-1"
-          :class="statusMeta.dotClass"
-          :title="statusMeta.label"
-          :aria-label="statusMeta.label"
-        />
       </div>
     </SidebarFooter>
   </Sidebar>

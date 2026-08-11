@@ -22,7 +22,7 @@ export default defineConfig({
       formats: ['es'],
     },
     rollupOptions: {
-      external: ['vue', 'vue-router', 'cordis', '@fumika/contracts', '@fumika/link'],
+      external: ['vue', 'vue-router', 'cordis', '@fumika/link'],
     },
   },
 })

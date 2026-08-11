@@ -7,14 +7,12 @@ import BackendStateService from '@fumika/plugin-state'
 import { Context } from 'cordis'
 import { app as electronApp } from 'electron'
 import started from 'electron-squirrel-startup'
-import RuntimeService from './runtime'
 import WindowService from './window'
 
 declare module 'cordis' {
   interface Context {
     app: App
     env: RuntimeEnvironment
-    version: string
   }
 }
 
@@ -38,14 +36,12 @@ async function bootstrap() {
 
   context.provide('app', electronApp)
   context.provide('env', env)
-  context.provide('version', electronApp.getVersion())
 
   const fibers = await Promise.all([
     context.plugin(LinkIpcMain),
     context.plugin(BackendStateService, {
       file: path.join(electronApp.getPath('userData'), 'state.json'),
     }),
-    context.plugin(RuntimeService),
     context.plugin(WindowService, {
       width: 1180,
       height: 760,

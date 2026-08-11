@@ -1,4 +1,3 @@
-import type {} from '@fumika/contracts'
 import { LinkIpcClient } from '@fumika/plugin-link-ipc/renderer'
 import { client, root, stateFiber } from '@fumika/webui'
 
