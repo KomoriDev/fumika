@@ -3,6 +3,12 @@ import type { Ref } from 'vue'
 import { Service } from 'cordis'
 import { inject, markRaw, onScopeDispose, ref } from 'vue'
 
+declare module 'cordis' {
+  interface Context {
+    version: string
+  }
+}
+
 export const contextKey = Symbol('fumika.context')
 
 export function useContext(): Context {

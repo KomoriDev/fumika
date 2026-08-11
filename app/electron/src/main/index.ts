@@ -13,6 +13,7 @@ declare module 'cordis' {
   interface Context {
     app: App
     env: RuntimeEnvironment
+    version: string
   }
 }
 
@@ -36,6 +37,7 @@ async function bootstrap() {
 
   context.provide('app', electronApp)
   context.provide('env', env)
+  context.provide('version', electronApp.getVersion())
 
   const fibers = await Promise.all([
     context.plugin(LinkIpcMain),

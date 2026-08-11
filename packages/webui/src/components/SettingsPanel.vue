@@ -3,7 +3,7 @@ import type { Component } from 'vue'
 import { Button } from '@fumika/ui/button'
 import { ExternalLink, GitFork, Info, Settings2, UserRound, Zap } from '@lucide/vue'
 import { computed, ref } from 'vue'
-import { useContext } from '../context'
+import { useContext, useInject } from '../context'
 import SettingEntryCard from './SettingEntryCard.vue'
 
 type SettingsSection = 'general' | 'account' | 'about'
@@ -37,6 +37,7 @@ const sections: SettingsNavItem[] = [
 ]
 
 const ctx = useContext()
+const version = useInject('version')
 const activeSection = ref<SettingsSection>('general')
 const activeItem = computed(() => sections.find(item => item.id === activeSection.value)!)
 const entries = computed(() => ctx.client.setting.sorted())
@@ -93,11 +94,11 @@ const entries = computed(() => ctx.client.setting.sorted())
       </div>
 
       <div v-else class="space-y-6 p-6">
-        <section class="flex items-start gap-4 rounded-2xl border border-border bg-muted/20 p-5">
+        <section class="flex items-center gap-4 rounded-2xl border border-border bg-muted/20 p-5">
           <span class="grid size-11 shrink-0 place-items-center rounded-2xl bg-neutral-950 text-white">
             <Zap class="size-5" />
           </span>
-          <div class="min-w-0 space-y-1">
+          <div class="min-w-0 flex-1 space-y-1">
             <h3 class="text-sm font-semibold text-foreground">
               Fumika Mail
             </h3>
@@ -105,6 +106,14 @@ const entries = computed(() => ctx.client.setting.sorted())
               A focused desktop workspace for reading and organizing mail.
             </p>
           </div>
+          <dl class="flex shrink-0 items-baseline gap-2 text-xs">
+            <dt class="text-muted-foreground">
+              Version
+            </dt>
+            <dd class="font-mono font-medium tabular-nums text-foreground">
+              {{ version ?? 'Unknown' }}
+            </dd>
+          </dl>
         </section>
 
         <section class="space-y-2">

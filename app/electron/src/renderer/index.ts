@@ -1,5 +1,8 @@
 import { LinkIpcClient } from '@fumika/plugin-link-ipc/renderer'
 import { client, root, stateFiber } from '@fumika/webui'
+import metadata from '../../package.json'
+
+root.provide('version', metadata.version)
 
 async function bootstrap() {
   const linkFiber = root.plugin(LinkIpcClient)
