@@ -40,7 +40,7 @@ export class ClientService extends Service {
     this.i18n = new I18nModule(context)
     this.app = createApp(App)
     this.app.use(this.router.router)
-    this.app.component('k-slot', ClientSlot)
+    this.app.component('fumika-slot', ClientSlot)
     this.schemastery = createSchemaRenderer({
       resolveText: value => this.i18n.resolve(value),
     })

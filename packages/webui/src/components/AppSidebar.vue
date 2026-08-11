@@ -49,7 +49,7 @@ function isLabelActive(label: string) {
 <template>
   <Sidebar collapsible="icon" class="top-9 bottom-0 h-auto border-r-0 bg-sidebar">
     <SidebarHeader v-if="appSettings.sidebar.showShortcuts" class="p-2">
-      <k-slot name="sidebar:shortcuts" single>
+      <fumika-slot name="sidebar:shortcuts" single>
         <div class="grid gap-1.5" :class="collapsed ? 'grid-cols-1' : 'grid-cols-4'">
           <SidebarMenuButton
             v-for="item in shortcuts"
@@ -67,7 +67,7 @@ function isLabelActive(label: string) {
             </RouterLink>
           </SidebarMenuButton>
         </div>
-      </k-slot>
+      </fumika-slot>
     </SidebarHeader>
 
     <SidebarContent class="sidebar-scrollbar pt-1">
@@ -127,10 +127,10 @@ function isLabelActive(label: string) {
           </SidebarMenu>
         </SidebarGroupContent>
       </SidebarGroup>
-      <k-slot name="sidebar:content" />
+      <fumika-slot name="sidebar:content" />
     </SidebarContent>
 
-    <k-slot name="sidebar:footer" />
+    <fumika-slot name="sidebar:footer" />
     <SidebarFooter class="p-2">
       <div class="relative flex min-w-0 items-center gap-2 rounded-xl p-2  group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0">
         <Avatar size="sm">
