@@ -1,0 +1,11 @@
+- name: yakumo
+  config:
+    exclude:
+      - app/electron
+      - packages/webui
+      - packages/ui
+      - packages/schemastery
+    pipeline:
+      build:
+        - tsc
+- name: yakumo-tsc

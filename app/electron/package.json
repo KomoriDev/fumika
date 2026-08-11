@@ -1,0 +1,50 @@
+{
+  "name": "@fumika/electron",
+  "productName": "Fumika",
+  "version": "0.1.0",
+  "private": true,
+  "author": {
+    "name": "KomoriDev",
+    "email": "mute231010@gmail.com"
+  },
+  "license": "AGPL-3.0-only",
+  "keywords": [],
+  "main": ".vite/build/index.js",
+  "scripts": {
+    "start": "electron-forge start",
+    "build": "electron-forge package",
+    "package": "electron-forge package",
+    "make": "electron-forge make",
+    "publish": "electron-forge publish",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.json",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@fumika/contracts": "workspace:*",
+    "@fumika/link": "workspace:*",
+    "@fumika/plugin-link-ipc": "workspace:*",
+    "@fumika/plugin-state": "workspace:*",
+    "@fumika/webui": "workspace:*",
+    "cordis": "4.0.0-rc.7",
+    "electron-squirrel-startup": "^1.0.1"
+  },
+  "devDependencies": {
+    "@electron-forge/cli": "^7.11.2",
+    "@electron-forge/maker-deb": "^7.11.2",
+    "@electron-forge/maker-rpm": "^7.11.2",
+    "@electron-forge/maker-squirrel": "^7.11.2",
+    "@electron-forge/maker-zip": "^7.11.2",
+    "@electron-forge/plugin-auto-unpack-natives": "^7.11.2",
+    "@electron-forge/plugin-fuses": "^7.11.2",
+    "@electron-forge/plugin-vite": "^7.11.2",
+    "@electron/fuses": "^1.8.0",
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/electron-squirrel-startup": "^1.0.2",
+    "@vitejs/plugin-vue": "^5.2.4",
+    "electron": "43.1.1",
+    "typescript": "^6.0.3",
+    "vite": "^5.4.21",
+    "vite-plugin-vue-devtools": "7.7.7",
+    "vue-tsc": "^3.3.5"
+  }
+}

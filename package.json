@@ -1,0 +1,35 @@
+{
+  "name": "@fumika/root",
+  "version": "1.0.0",
+  "private": true,
+  "packageManager": "pnpm@10.28.2",
+  "author": {
+    "name": "KomoriDev",
+    "email": "mute231010@gmail.com"
+  },
+  "license": "AGPL-3.0-only",
+  "keywords": [],
+  "scripts": {
+    "dev": "pnpm --filter @fumika/electron start",
+    "build": "pnpm run build:packages && pnpm run build:webui && pnpm run build:app",
+    "build:packages": "yakumo build",
+    "build:webui": "pnpm --filter @fumika/webui build",
+    "build:app": "pnpm --filter @fumika/electron package",
+    "typecheck": "pnpm -r --if-present run typecheck",
+    "lint": "eslint .",
+    "prepare": "node .husky/install.js"
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "^9.1.0",
+    "@types/node": "^26.1.1",
+    "eslint": "^10.7.0",
+    "eslint-plugin-better-tailwindcss": "^4.7.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.3.0",
+    "lodash": "^4.17.21",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.65.0",
+    "yakumo": "^3.2.1",
+    "yakumo-tsc": "^3.0.1"
+  }
+}
