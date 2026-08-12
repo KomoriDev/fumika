@@ -39,11 +39,12 @@ export abstract class Link<C extends Context = Context, O extends Link.Config = 
   ): Promise<Link.ActionOutput<K>>
   action<T, R>(path: string, handler: Link.ActionHandler<T, R>): () => void
   action<T, R>(path: string, payload?: T): Promise<R>
-  action<T, R>(path: string, arg?: Link.ActionHandler<T, R> | T) {
+  action<T, R>(path: string, payload: T, options: Link.ActionOptions): Promise<R>
+  action<T, R>(path: string, arg?: Link.ActionHandler<T, R> | T, options?: Link.ActionOptions) {
     if (typeof arg === 'function') {
       return this.handle<T, R>(path, arg as Link.ActionHandler<T, R>)
     }
-    return this.invoke<T, R>(path, arg as T)
+    return this.invoke<T, R>(path, arg as T, options?.timeout)
   }
 
   protected get log() {
@@ -72,15 +73,15 @@ export abstract class Link<C extends Context = Context, O extends Link.Config = 
     return () => {}
   }
 
-  protected async invoke<T, R>(path: string, payload?: T): Promise<R> {
-    const res = await this.call<T, R>(path, payload)
+  protected async invoke<T, R>(path: string, payload?: T, timeout?: number): Promise<R> {
+    const res = await this.call<T, R>(path, payload, timeout)
     if (res.error) {
       throw new LinkError(res.error.code, res.error.message)
     }
     return res.data as R
   }
 
-  protected abstract call<T, R>(path: string, payload?: T): Promise<Link.Response<R>>
+  protected abstract call<T, R>(path: string, payload?: T, timeout?: number): Promise<Link.Response<R>>
 }
 
 export namespace Link {
@@ -103,10 +104,14 @@ export namespace Link {
 
   export type EventPayload<K extends EventName> = Events[K]
 
+  export interface ActionOptions {
+    timeout?: number
+  }
+
   export type ActionArguments<K extends ActionName>
     = undefined extends ActionInput<K>
-      ? [payload?: ActionInput<K>]
-      : [payload: ActionInput<K>]
+      ? [payload?: ActionInput<K>, options?: ActionOptions]
+      : [payload: ActionInput<K>, options?: ActionOptions]
 
   export type ActionHandler<T = any, R = any> = (
     payload: T,

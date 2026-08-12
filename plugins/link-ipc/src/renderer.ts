@@ -44,7 +44,7 @@ export class LinkIpcClient<C extends Context = Context> extends Link<C> {
     }
   }
 
-  protected async call<T, R>(path: string, payload?: T): Promise<Link.Response<R>> {
+  protected async call<T, R>(path: string, payload?: T, timeout?: number): Promise<Link.Response<R>> {
     const bridge = this.bridge
     if (!bridge) {
       this.log.warn('invoke %s: preload bridge not available', path)
@@ -56,7 +56,7 @@ export class LinkIpcClient<C extends Context = Context> extends Link<C> {
 
     this.log.debug('→ %s', path)
     try {
-      const result = await Link.withTimeout(bridge.invoke<T, R>(path, payload))
+      const result = await Link.withTimeout(bridge.invoke<T, R>(path, payload), timeout)
       this.log.debug('← %s success', path)
       return { ...result, id: path }
     }
