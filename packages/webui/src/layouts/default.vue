@@ -22,6 +22,13 @@ const router = useRouter()
 const ctx = useContext()
 const appState = useInject('appState')
 const fallbackSidebarOpen = ref(true)
+const settingsOpen = ref(false)
+const settingsSection = ref<'general' | 'account' | 'about'>('general')
+const disposeSettingsOpen = ctx.on('settings/open', (section) => {
+  settingsSection.value = section
+  settingsOpen.value = true
+})
+ctx.effect(() => disposeSettingsOpen)
 const sidebarOpen = computed({
   get: () => appState.value?.data.app.sidebar.open ?? fallbackSidebarOpen.value,
   set: (value: boolean) => {
@@ -65,6 +72,11 @@ ctx.client.action.register('sidebar.toggle', {
 function executeAction(id: string): void {
   void ctx.client.action.execute(id)
 }
+
+function openAccountSetup(): void {
+  settingsOpen.value = false
+  void router.push('/accounts')
+}
 </script>
 
 <template>
@@ -104,7 +116,7 @@ function executeAction(id: string): void {
           </div>
 
           <div class="window-no-drag flex justify-end">
-            <Dialog>
+            <Dialog v-model:open="settingsOpen">
               <DialogTrigger as-child>
                 <Button class="titlebar-action" variant="ghost" size="icon-xs" aria-label="Settings" title="Settings">
                   <Settings2 />
@@ -116,7 +128,7 @@ function executeAction(id: string): void {
                   <DialogDescription>Customize your Fumika Mail workspace.</DialogDescription>
                 </DialogHeader>
 
-                <SettingsPanel />
+                <SettingsPanel v-model:section="settingsSection" @add-account="openAccountSetup" />
               </DialogContent>
             </Dialog>
           </div>

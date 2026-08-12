@@ -1,6 +1,6 @@
 <script setup lang="ts">
+import type { MailAccountSummary } from '@fumika/state'
 import { DEFAULT_STATE } from '@fumika/state'
-import { Avatar, AvatarFallback } from '@fumika/ui/avatar'
 import {
   Sidebar,
   SidebarContent,
@@ -14,16 +14,26 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from '@fumika/ui/sidebar'
-import { computed } from 'vue'
-import { RouterLink, useRoute } from 'vue-router'
-import { useContext } from '@/context'
+import { computed, onMounted, ref } from 'vue'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
+import SidebarUserMenu from '@/components/SidebarUserMenu.vue'
+import { useContext, useInject } from '@/context'
 import { resolveMailFolder } from '@/mail'
 import { getSidebarMailbox, resolveSidebarShortcuts, sidebarMailboxes } from '@/sidebar'
 
+declare module 'cordis' {
+  interface Events {
+    'settings/open': (section: 'general' | 'account' | 'about') => void
+  }
+}
+
 const route = useRoute()
+const router = useRouter()
 const ctx = useContext()
+const link = useInject('link')
 const { state } = useSidebar()
 const appSettings = computed(() => ctx.client.setting.readState('app', DEFAULT_STATE.app))
+const accounts = ref<MailAccountSummary[]>([])
 
 const mailboxes = sidebarMailboxes
 const shortcuts = computed(() => resolveSidebarShortcuts(appSettings.value.sidebar.shortcuts)
@@ -41,6 +51,30 @@ const activeLabel = computed(() => typeof route.query.label === 'string' ? route
 
 function isLabelActive(label: string) {
   return activeLabel.value === label
+}
+
+onMounted(async () => {
+  const dispose = link.value?.on('mail-account.changed', ({ accounts: next }) => {
+    accounts.value = next
+  })
+  if (dispose)
+    ctx.effect(() => dispose)
+  if (!link.value)
+    return
+  try {
+    accounts.value = (await link.value.action('mail-account.list')).accounts
+  }
+  catch {
+    accounts.value = []
+  }
+})
+
+function openSettings(section: 'general' | 'account'): void {
+  ctx.emit('settings/open', section)
+}
+
+function addAccount(): void {
+  void router.push('/accounts')
 }
 </script>
 
@@ -130,21 +164,12 @@ function isLabelActive(label: string) {
 
     <fumika-slot name="sidebar:footer" />
     <SidebarFooter class="p-2">
-      <div class="flex min-w-0 items-center gap-2 rounded-xl p-2 group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0">
-        <Avatar size="sm">
-          <AvatarFallback class="bg-neutral-900 text-[10px] font-semibold text-white">
-            K
-          </AvatarFallback>
-        </Avatar>
-        <div class="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
-          <p class="truncate text-xs font-medium">
-            Komorebi
-          </p>
-          <p class="truncate text-[10px] text-muted-foreground">
-            komorebi@fumika.dev
-          </p>
-        </div>
-      </div>
+      <SidebarUserMenu
+        :accounts="accounts"
+        @open-account-settings="openSettings('account')"
+        @open-general-settings="openSettings('general')"
+        @add-account="addAccount"
+      />
     </SidebarFooter>
   </Sidebar>
 </template>

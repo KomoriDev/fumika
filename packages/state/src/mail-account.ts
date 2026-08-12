@@ -17,6 +17,7 @@ export interface MailAccount {
   providerAccountId: string
   mailboxAddress: string
   displayName: string
+  avatarUrl?: string
   authType: MailAuthType
   status: MailAccountStatus
   grantedScopes: string[]
@@ -32,6 +33,7 @@ export interface MailAccountSummary {
   provider: MailProvider
   mailboxAddress: string
   displayName: string
+  avatarUrl?: string
   status: MailAccountStatus
   lastVerifiedAt: number
 }

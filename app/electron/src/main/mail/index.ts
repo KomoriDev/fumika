@@ -1,5 +1,6 @@
 import type { MailAccount, MailAccountManualPayload, MailAccountOAuthPayload, MailAccountSummary } from '@fumika/state'
 import type { Context } from 'cordis'
+import { Buffer } from 'node:buffer'
 import { randomUUID } from 'node:crypto'
 import process from 'node:process'
 import { RuntimeError } from '@cordisjs/plugin-database'
@@ -49,6 +50,7 @@ export class MailAccountService extends Service {
       providerAccountId: 'string(255)',
       mailboxAddress: 'string(320)',
       displayName: 'string(255)',
+      avatarUrl: { type: 'string', length: 2048 },
       authType: 'string(32)',
       status: 'string(32)',
       grantedScopes: 'list',
@@ -76,7 +78,7 @@ export class MailAccountService extends Service {
 
   async* [Service.init]() {
     await this.ctx.database.prepared()
-
+    await this.backfillOAuthAvatars()
     yield this.ctx.link.action('mail-account.list', async () => ({
       accounts: await this.list(),
       oauth: {
@@ -141,6 +143,7 @@ export class MailAccountService extends Service {
       providerAccountId,
       mailboxAddress,
       displayName: userInfo.name?.trim() || mailboxAddress,
+      avatarUrl: normalizeAvatarUrl(userInfo.picture),
       authType: 'oauth2',
       status: 'active',
       grantedScopes: authorization.grantedScopes,
@@ -238,6 +241,36 @@ export class MailAccountService extends Service {
     await this.broadcast()
   }
 
+  private async backfillOAuthAvatars(): Promise<void> {
+    const google = this.oauthProviders.google
+    if (!google)
+      return
+    const accounts = (await this.ctx.database.get('mail_account', { provider: 'google' }))
+      .filter(account => !account.avatarUrl)
+    for (const account of accounts) {
+      try {
+        const credential = await this.readOAuthCredential(account.id)
+        if (credential.expiresAt <= Date.now())
+          continue
+        const userInfo = await fetchUserInfo(google, credential.accessToken)
+        const avatarUrl = normalizeAvatarUrl(userInfo.picture)
+        if (avatarUrl)
+          await this.ctx.database.set('mail_account', { id: account.id }, { avatarUrl })
+      }
+      catch {
+        // Avatar loading is optional and must not prevent mailbox startup.
+      }
+    }
+  }
+
+  private async readOAuthCredential(accountId: string): Promise<StoredOAuthCredential> {
+    const row = (await this.ctx.database.get('mail_credential', { accountId }))[0]
+    if (!row || row.kind !== 'oauth2')
+      throw new Error('OAuth credential is unavailable.')
+    const { result } = await safeStorage.decryptStringAsync(Buffer.from(row.encryptedPayload))
+    return JSON.parse(result) as StoredOAuthCredential
+  }
+
   private async remove(id: string): Promise<void> {
     const account = (await this.ctx.database.get('mail_account', { id }))[0]
     if (!account)
@@ -303,6 +336,18 @@ function isAuthenticationFailure(error: unknown): boolean {
   return /authentication|invalid login|login fail|password|credentials|\b535\b/i.test(message)
 }
 
+function normalizeAvatarUrl(value: unknown): string | undefined {
+  if (typeof value !== 'string')
+    return undefined
+  try {
+    const url = new URL(value.trim())
+    return url.protocol === 'https:' ? url.toString() : undefined
+  }
+  catch {
+    return undefined
+  }
+}
+
 function normalizeEmail(value: unknown): string | undefined {
   if (typeof value !== 'string')
     return undefined
@@ -337,6 +382,7 @@ function toSummary(account: MailAccount): MailAccountSummary {
     provider: account.provider,
     mailboxAddress: account.mailboxAddress,
     displayName: account.displayName,
+    avatarUrl: account.avatarUrl,
     status: account.status,
     lastVerifiedAt: account.lastVerifiedAt,
   }

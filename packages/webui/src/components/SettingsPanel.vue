@@ -2,11 +2,17 @@
 import type { Component } from 'vue'
 import { Button } from '@fumika/ui/button'
 import { ExternalLink, GitFork, Info, Settings2, UserRound, Zap } from '@lucide/vue'
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { useContext, useInject } from '../context'
+import AccountSettingsPanel from './AccountSettingsPanel.vue'
 import SettingEntryCard from './SettingEntryCard.vue'
 
 type SettingsSection = 'general' | 'account' | 'about'
+
+const emit = defineEmits<{
+  addAccount: []
+}>()
+const section = defineModel<SettingsSection>('section', { default: 'general' })
 
 interface SettingsNavItem {
   id: SettingsSection
@@ -38,7 +44,7 @@ const sections: SettingsNavItem[] = [
 
 const ctx = useContext()
 const version = useInject('version')
-const activeSection = ref<SettingsSection>('general')
+const activeSection = section
 const activeItem = computed(() => sections.find(item => item.id === activeSection.value)!)
 const entries = computed(() => ctx.client.setting.sorted())
 </script>
@@ -79,18 +85,8 @@ const entries = computed(() => ctx.client.setting.sorted())
         <SettingEntryCard v-for="entry in entries" :key="entry.id" :entry="entry" />
       </div>
 
-      <div v-else-if="activeSection === 'account'" class="flex min-h-105 items-center justify-center p-6">
-        <section class="w-full max-w-md rounded-2xl border border-dashed border-border bg-muted/20 p-8 text-center">
-          <span class="mx-auto grid size-11 place-items-center rounded-2xl bg-muted text-muted-foreground">
-            <UserRound class="size-5" />
-          </span>
-          <h3 class="mt-4 text-sm font-semibold text-foreground">
-            Account settings
-          </h3>
-          <p class="mx-auto mt-1 max-w-xs text-xs/5 text-muted-foreground">
-            Account management will appear here when it becomes available.
-          </p>
-        </section>
+      <div v-else-if="activeSection === 'account'" class="p-6">
+        <AccountSettingsPanel @add-account="emit('addAccount')" />
       </div>
 
       <div v-else class="space-y-6 p-6">
