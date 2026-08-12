@@ -13,8 +13,8 @@ import { ArrowLeft, ArrowRight, RotateCw, Search, Settings2, Zap } from '@lucide
 import { watchDebounced } from '@vueuse/core'
 import { computed, ref, watch } from 'vue'
 import { RouterView, useRoute, useRouter } from 'vue-router'
-import AppSidebar from '@/components/AppSidebar.vue'
-import SettingsPanel from '@/components/SettingsPanel.vue'
+import AppSidebar from '@/components/app-sidebar/AppSidebar.vue'
+import SettingsPanel from '@/components/settings/SettingsPanel.vue'
 import { useContext, useInject } from '@/context'
 
 const route = useRoute()

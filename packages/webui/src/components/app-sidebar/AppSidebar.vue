@@ -16,10 +16,10 @@ import {
 } from '@fumika/ui/sidebar'
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import SidebarUserMenu from '@/components/SidebarUserMenu.vue'
 import { useContext, useInject } from '@/context'
 import { resolveMailFolder } from '@/mail'
 import { getSidebarMailbox, resolveSidebarShortcuts, sidebarMailboxes } from '@/sidebar'
+import SidebarUserMenu from './SidebarUserMenu.vue'
 
 declare module 'cordis' {
   interface Events {

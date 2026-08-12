@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import type { SettingOptions } from '../plugins/setting'
+import type { SettingOptions } from '@/plugins/setting'
 import { SchemaForm } from '@fumika/schemastery'
 import { computed } from 'vue'
-import { useContext } from '../context'
+import { useContext } from '@/context'
 
 const props = defineProps<{
   entry: SettingOptions

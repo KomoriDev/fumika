@@ -1,7 +1,7 @@
 import type { Context } from 'cordis'
 import { DEFAULT_SIDEBAR_SHORTCUTS, DEFAULT_STATE } from '@fumika/state'
 import Schema from 'schemastery'
-import SidebarShortcutsControl from './components/SidebarShortcutsControl.vue'
+import SidebarShortcutsControl from './components/app-sidebar/SidebarShortcutsControl.vue'
 import { mailFolderLabels, mailFolderPattern, mailFolders } from './mail'
 import { resolveSidebarShortcuts } from './sidebar'
 import MailAccountSetupView from './views/MailAccountSetupView.vue'

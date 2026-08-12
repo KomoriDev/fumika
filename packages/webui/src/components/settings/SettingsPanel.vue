@@ -3,7 +3,7 @@ import type { Component } from 'vue'
 import { Button } from '@fumika/ui/button'
 import { ExternalLink, GitFork, Info, Settings2, UserRound, Zap } from '@lucide/vue'
 import { computed } from 'vue'
-import { useContext, useInject } from '../context'
+import { useContext, useInject } from '@/context'
 import AccountSettingsPanel from './AccountSettingsPanel.vue'
 import SettingEntryCard from './SettingEntryCard.vue'
 
