@@ -4,6 +4,7 @@ import Schema from 'schemastery'
 import SidebarShortcutsControl from './components/SidebarShortcutsControl.vue'
 import { mailFolderLabels, mailFolderPattern, mailFolders } from './mail'
 import { resolveSidebarShortcuts } from './sidebar'
+import MailAccountSetupView from './views/MailAccountSetupView.vue'
 import MailListView from './views/MailListView.vue'
 
 const GeneralSettings = Schema.object({
@@ -77,6 +78,17 @@ const MailPreferences = Schema.object({
 })
 
 export function installCore(ctx: Context): void {
+  ctx.inject(['link'], (injected) => {
+    injected.client.router.page({
+      id: 'mail-accounts',
+      path: '/accounts',
+      name: 'Accounts',
+      description: 'Connect a mailbox',
+      icon: 'accounts',
+      component: MailAccountSetupView,
+    })
+  })
+
   ctx.client.router.page({
     id: 'mail',
     path: `/:folder(${mailFolderPattern})`,

@@ -91,6 +91,8 @@ export class RouterModule {
   readonly cache = shallowReactive(new Map<string, string>())
   readonly router: Router
   private pendingPath?: string
+  private accountsReady = false
+  private hasMailAccounts = true
   private initialTitle = document.title
 
   constructor(public ctx: Context) {
@@ -126,6 +128,11 @@ export class RouterModule {
         document.title = this.initialTitle
       }
     })
+
+    ctx.inject(['link'], injected => injected.effect(() => injected.link.on('mail-account.changed', ({ accounts }) => {
+      this.accountsReady = true
+      this.hasMailAccounts = accounts.length > 0
+    })))
   }
 
   get home(): string {
@@ -198,7 +205,34 @@ export class RouterModule {
     })
   }
 
-  private resolveNavigation(to: RouteLocationNormalized): string | true | undefined {
+  setMailAccountsAvailable(available: boolean): void {
+    this.accountsReady = true
+    this.hasMailAccounts = available
+  }
+
+  private async resolveMailAccountNavigation(to: RouteLocationNormalized): Promise<string | undefined> {
+    if (to.path === '/accounts')
+      return undefined
+    if (!this.accountsReady) {
+      const link = this.ctx.get('link')
+      if (!link)
+        return undefined
+      try {
+        const reply = await link.action('mail-account.list')
+        this.accountsReady = true
+        this.hasMailAccounts = reply.accounts.length > 0
+      }
+      catch {
+        return undefined
+      }
+    }
+    return this.hasMailAccounts ? undefined : '/accounts'
+  }
+
+  private async resolveNavigation(to: RouteLocationNormalized): Promise<string | true | undefined> {
+    const accountRedirect = await this.resolveMailAccountNavigation(to)
+    if (accountRedirect)
+      return accountRedirect
     if (to.meta.fallback) {
       this.pendingPath = to.fullPath
       const home = this.home

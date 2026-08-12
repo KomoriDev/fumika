@@ -2,11 +2,15 @@ import type { App } from 'electron'
 import type { RuntimeEnvironment } from './window'
 import path from 'node:path'
 import process from 'node:process'
+import { pathToFileURL } from 'node:url'
+import Database from '@cordisjs/plugin-database'
+import SQLiteDriver from '@cordisjs/plugin-database-sqlite'
 import { LinkIpcMain } from '@fumika/plugin-link-ipc/main'
 import BackendStateService from '@fumika/plugin-state'
 import { Context } from 'cordis'
 import { app as electronApp } from 'electron'
 import started from 'electron-squirrel-startup'
+import MailAccountService from './mail'
 import WindowService from './window'
 
 declare module 'cordis' {
@@ -39,11 +43,20 @@ async function bootstrap() {
   context.provide('env', env)
   context.provide('version', electronApp.getVersion())
 
+  const linkFiber = context.plugin(LinkIpcMain)
+  const modelFiber = context.plugin(Database)
+  await Promise.all([linkFiber.await(), modelFiber.await()])
+
+  const databaseFiber = context.plugin(SQLiteDriver, {
+    path: new URL('mail.db', pathToFileURL(`${electronApp.getPath('userData')}${path.sep}`)).href,
+  })
+  await databaseFiber.await()
+
   const fibers = await Promise.all([
-    context.plugin(LinkIpcMain),
     context.plugin(BackendStateService, {
       file: path.join(electronApp.getPath('userData'), 'state.json'),
     }),
+    context.plugin(MailAccountService),
     context.plugin(WindowService, {
       width: 1180,
       height: 760,

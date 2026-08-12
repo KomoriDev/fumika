@@ -4,6 +4,7 @@ import type { Context } from 'cordis'
 import { apply, observe } from '@cordisjs/muon'
 import { Service } from 'cordis'
 
+export * from './mail-account'
 export { apply, DeltaState, observe } from '@cordisjs/muon'
 export type { Delta, Mutation } from '@cordisjs/muon'
 
