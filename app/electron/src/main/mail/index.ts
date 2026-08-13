@@ -20,7 +20,7 @@ import { RuntimeError } from '@cordisjs/plugin-database'
 import { Service } from 'cordis'
 import { safeStorage } from 'electron'
 import { authorizeWithBrowser, createOAuthProviders, fetchUserInfo, providerName, refreshOAuthAuthorization } from './oauth'
-import { markRemoteMessagesRead, matchesFolder, syncAccountMessages, syncInboxMessages, updateRemoteFlags } from './receiver'
+import { extractSenderAvatarUrl, markRemoteMessagesRead, matchesFolder, syncAccountMessages, syncInboxMessages, updateRemoteFlags } from './receiver'
 import { verifyImap, verifySmtp } from './transport'
 import { MailAccountWatcher } from './watcher'
 
@@ -111,6 +111,7 @@ export class MailAccountService extends Service {
       accountAvatarUrl: { type: 'string', length: 2048 },
       folder: 'string(32)',
       sender: 'json',
+      senderAvatarUrl: { type: 'string', length: 2048 },
       subject: 'text',
       preview: 'text',
       receivedAt: 'unsigned',
@@ -636,6 +637,7 @@ function toMessageSummary(message: MailMessageRow): MailMessageSummary {
     accountAvatarUrl: message.accountAvatarUrl,
     folder: message.folder,
     sender: message.sender,
+    senderAvatarUrl: extractSenderAvatarUrl(message.html),
     subject: message.subject,
     preview: message.preview,
     receivedAt: message.receivedAt,

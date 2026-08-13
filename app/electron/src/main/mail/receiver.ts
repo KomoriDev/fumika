@@ -231,6 +231,7 @@ async function parseMessage(
     accountAvatarUrl: account.avatarUrl,
     folder,
     sender,
+    senderAvatarUrl: extractSenderAvatarUrl(parsed.html),
     subject,
     preview,
     receivedAt,
@@ -493,6 +494,71 @@ function decodeHtmlEntities(value: string): string {
       : Number.parseInt(entity.slice(1), 10)
     return Number.isFinite(codePoint) ? String.fromCodePoint(codePoint) : _match
   })
+}
+
+export function extractSenderAvatarUrl(html?: string): string | undefined {
+  if (!html)
+    return undefined
+  const source = decodeHtmlEntities(html)
+  const icon = source.match(/[?&]icon=([^&"'>\s]+)/i)?.[1]
+  if (icon) {
+    try {
+      const url = sanitizeAvatarUrl(decodeURIComponent(icon))
+      if (url)
+        return url
+    }
+    catch {}
+  }
+
+  let fallback: string | undefined
+  for (const match of source.matchAll(/<img\b[^>]*>/gi)) {
+    const tag = match[0]
+    const src = tag.match(/\bsrc=["'](https?:\/\/[^"']+)["']/i)?.[1]
+    if (!src)
+      continue
+    const url = sanitizeAvatarUrl(src)
+    if (!url)
+      continue
+    const circular = /border-radius\s*:\s*(?:50%|100%|999px)/i.test(tag) || /\b(?:avatar|portrait)\b/i.test(tag)
+    if (circular && isLikelyAvatarUrl(url))
+      return url
+    if (!fallback && isLikelyAvatarUrl(url))
+      fallback = url
+  }
+  return fallback
+}
+
+function isLikelyAvatarUrl(value: string): boolean {
+  try {
+    const url = new URL(value)
+    const host = url.hostname
+    if (/(?:^|\.)(?:qlogo\.cn|qpic\.cn)$/i.test(host))
+      return true
+    if (/(?:^|\.)gravatar\.com$/i.test(host))
+      return url.pathname.includes('/avatar/')
+    if (/(?:^|\.)githubusercontent\.com$/i.test(host))
+      return url.pathname.includes('avatars')
+    if (/(?:^|\.)(?:licdn\.com|linkedin\.com)$/i.test(host))
+      return /profile|dms\/image/i.test(url.pathname)
+    return false
+  }
+  catch {
+    return false
+  }
+}
+
+function sanitizeAvatarUrl(value: string): string | undefined {
+  try {
+    const url = new URL(value.trim())
+    if (url.protocol === 'http:')
+      url.protocol = 'https:'
+    if (url.protocol !== 'https:')
+      return undefined
+    return url.href
+  }
+  catch {
+    return undefined
+  }
 }
 
 export function matchesFolder(message: MailMessageSummary, folder: MailFolder): boolean {

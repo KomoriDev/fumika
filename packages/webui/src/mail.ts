@@ -80,3 +80,19 @@ export function formatMailDate(timestamp: number): string {
     timeStyle: 'short',
   }).format(new Date(timestamp))
 }
+
+export async function gravatarAvatarUrl(address: string): Promise<string | undefined> {
+  const email = address.trim().toLowerCase()
+  if (!email.includes('@'))
+    return undefined
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(email))
+  const hash = [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('')
+  return `https://www.gravatar.com/avatar/${hash}?d=404&s=128`
+}
+
+export function unavatarUrl(address: string): string | undefined {
+  const email = address.trim().toLowerCase()
+  if (!email.includes('@'))
+    return undefined
+  return `https://unavatar.io/${encodeURIComponent(email)}?fallback=false`
+}

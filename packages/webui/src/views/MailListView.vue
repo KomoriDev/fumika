@@ -1,16 +1,14 @@
 <script setup lang="ts">
 import type { MailMessageSummary } from '@fumika/state'
-import { Avatar, AvatarFallback, AvatarImage } from '@fumika/ui/avatar'
 import { Badge } from '@fumika/ui/badge'
 import { Button } from '@fumika/ui/button'
 import { CheckCheck, Inbox, MailSearch, Paperclip, RefreshCw, Star, TriangleAlert } from '@lucide/vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import SenderAvatar from '@/components/mail/SenderAvatar.vue'
 import { useInject } from '@/context'
 import {
-  avatarClass,
   formatMailTime,
-  initials,
   mailFolderDescriptions,
   mailFolderLabels,
   resolveMailFolder,
@@ -195,12 +193,12 @@ function messageOf(reason: unknown): string {
           <Star class="size-4" :fill="mail.starred ? 'currentColor' : 'none'" />
         </button>
 
-        <Avatar size="sm">
-          <AvatarImage v-if="mail.accountAvatarUrl" :src="mail.accountAvatarUrl" :alt="mail.accountName" />
-          <AvatarFallback class="text-[10px] font-semibold" :class="avatarClass(mail.sender.address)">
-            {{ initials(senderName(mail.sender)) }}
-          </AvatarFallback>
-        </Avatar>
+        <SenderAvatar
+          :name="senderName(mail.sender)"
+          :address="mail.sender.address"
+          :src="mail.senderAvatarUrl"
+          size="sm"
+        />
 
         <div class="min-w-0">
           <p class="truncate text-sm" :class="mail.unread ? 'font-semibold text-foreground' : 'font-medium text-foreground/80'">

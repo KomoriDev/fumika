@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import type { MailMessageDetail, MailMessageSummary } from '@fumika/state'
-import { Avatar, AvatarFallback } from '@fumika/ui/avatar'
 import { Badge } from '@fumika/ui/badge'
 import { Button } from '@fumika/ui/button'
 import { ArrowLeft, Download, MailOpen, Paperclip, RefreshCw, Star, TriangleAlert } from '@lucide/vue'
 import { computed, ref } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
-import MailHtmlBody from '@/components/MailHtmlBody.vue'
+import MailHtmlBody from '@/components/mail/MailHtmlBody.vue'
+import SenderAvatar from '@/components/mail/SenderAvatar.vue'
 import { useInject } from '@/context'
-import { avatarClass, formatMailDate, initials, senderName } from '@/mail'
+import { formatMailDate, senderName } from '@/mail'
 
 const route = useRoute()
 const router = useRouter()
@@ -103,7 +103,7 @@ function messageOf(reason: unknown): string {
 </script>
 
 <template>
-  <section class="min-h-full bg-background">
+  <section class="flex min-h-full flex-col bg-background">
     <header class="sticky top-0 z-10 flex items-center justify-between gap-3 border-b bg-background/95 px-4 py-3 backdrop-blur-sm">
       <div class="flex min-w-0 items-center gap-2">
         <Button variant="ghost" size="icon-sm" :disabled="leaving" aria-label="Back to mail list" @click="goBack">
@@ -137,7 +137,7 @@ function messageOf(reason: unknown): string {
 
     <div v-else-if="error && !message" class="grid min-h-105 place-items-center px-6 text-center">
       <div class="max-w-sm">
-        <span class="mx-auto grid size-12 place-items-center rounded-2xl bg-destructive/10 text-destructive">
+        <span class="mx-auto grid size-12 place-items-center rounded-sm bg-destructive/10 text-destructive">
           <TriangleAlert class="size-5" />
         </span>
         <h1 class="mt-4 text-base font-semibold">
@@ -152,24 +152,26 @@ function messageOf(reason: unknown): string {
       </div>
     </div>
 
-    <article v-else-if="message" class="mx-auto w-full max-w-4xl px-6 py-7 sm:px-10">
-      <div v-if="error" class="mb-5 flex items-start gap-2 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-        <TriangleAlert class="mt-0.5 size-3.5 shrink-0" />
-        {{ error }}
+    <article v-else-if="message" class="flex min-h-0 flex-1 flex-col">
+      <div v-if="error" class="mx-auto w-full max-w-5xl px-5 pt-5 sm:px-8">
+        <div class="mb-1 flex items-start gap-2 rounded-sm border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+          <TriangleAlert class="mt-0.5 size-3.5 shrink-0" />
+          {{ error }}
+        </div>
       </div>
 
-      <header>
+      <header class="mx-auto w-full max-w-5xl px-5 py-6 sm:px-8">
         <div class="flex flex-wrap items-start justify-between gap-4">
-          <div class="min-w-0">
+          <div class="min-w-0 flex-1">
             <div class="flex flex-wrap items-center gap-2">
-              <h1 class="text-2xl font-semibold tracking-tight text-foreground">
+              <h1 class="wrap-break-word text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
                 {{ message.subject }}
               </h1>
               <Badge variant="secondary">
                 {{ message.accountName }}
               </Badge>
             </div>
-            <p class="mt-2 text-sm text-muted-foreground">
+            <p class="mt-2 text-xs text-muted-foreground">
               {{ formatMailDate(message.receivedAt) }}
             </p>
           </div>
@@ -179,14 +181,15 @@ function messageOf(reason: unknown): string {
           </Badge>
         </div>
 
-        <div class="mt-7 flex items-start gap-3 border-b pb-6">
-          <Avatar size="lg">
-            <AvatarFallback class="font-semibold" :class="avatarClass(message.sender.address)">
-              {{ initials(senderName(message.sender)) }}
-            </AvatarFallback>
-          </Avatar>
+        <div class="mt-5 flex items-start gap-3 border-t pt-5">
+          <SenderAvatar
+            :name="senderName(message.sender)"
+            :address="message.sender.address"
+            :src="message.senderAvatarUrl"
+            size="lg"
+          />
           <div class="min-w-0 flex-1 text-sm">
-            <p class="font-semibold text-foreground">
+            <p class="wrap-break-word font-semibold text-foreground">
               {{ senderName(message.sender) }}
               <span class="font-normal text-muted-foreground">&lt;{{ message.sender.address }}&gt;</span>
             </p>
@@ -200,19 +203,28 @@ function messageOf(reason: unknown): string {
         </div>
       </header>
 
-      <MailHtmlBody v-if="message.html" class="mt-7" :html="message.html" />
-      <div v-else class="mt-7 whitespace-pre-wrap wrap-break-word text-[15px]/7 text-foreground">
-        {{ message.text || 'This message has no readable text body.' }}
-      </div>
+      <section
+        v-if="message.html"
+        class="min-h-0 flex-1 border-t bg-white dark:bg-background"
+      >
+        <div class="mx-auto w-full max-w-5xl px-5 py-6 sm:px-8 sm:py-7">
+          <MailHtmlBody :html="message.html" />
+        </div>
+      </section>
+      <section v-else class="mx-auto w-full max-w-5xl px-5 pb-8 sm:px-8">
+        <div class="whitespace-pre-wrap wrap-break-word text-[15px]/7 text-foreground">
+          {{ message.text || 'This message has no readable text body.' }}
+        </div>
+      </section>
 
-      <section v-if="message.attachments.length" class="mt-10 border-t pt-6">
-        <h2 class="flex items-center gap-2 text-sm font-semibold">
+      <section v-if="message.attachments.length" class="mx-auto w-full max-w-5xl px-5 pb-8 sm:px-8">
+        <h2 class="flex items-center gap-2 border-t pt-6 text-sm font-semibold">
           <Paperclip class="size-4" />
           {{ message.attachments.length }} {{ message.attachments.length === 1 ? 'attachment' : 'attachments' }}
         </h2>
         <div class="mt-3 grid gap-2 sm:grid-cols-2">
-          <div v-for="attachment in message.attachments" :key="`${attachment.filename}:${attachment.size}`" class="flex items-center gap-3 rounded-xl border bg-card p-3">
-            <span class="grid size-9 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">
+          <div v-for="attachment in message.attachments" :key="`${attachment.filename}:${attachment.size}`" class="flex items-center gap-3 rounded-sm border p-3">
+            <span class="grid size-9 shrink-0 place-items-center rounded-sm bg-muted text-muted-foreground">
               <Download class="size-4" />
             </span>
             <div class="min-w-0">

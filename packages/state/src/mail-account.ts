@@ -15,6 +15,7 @@ export interface MailMessageSummary {
   accountAvatarUrl?: string
   folder: Exclude<MailFolder, 'starred' | 'snoozed'>
   sender: MailAddress
+  senderAvatarUrl?: string
   subject: string
   preview: string
   receivedAt: number

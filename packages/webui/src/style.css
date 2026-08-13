@@ -144,6 +144,16 @@
   input {
     -webkit-app-region: no-drag;
   }
+
+  .page-enter-active,
+  .page-leave-active {
+    transition: opacity var(--motion-duration-fast) var(--motion-ease-out);
+  }
+
+  .page-enter-from,
+  .page-leave-to {
+    opacity: 0;
+  }
 }
 
 @layer utilities {
