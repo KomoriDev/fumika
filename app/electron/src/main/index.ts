@@ -12,6 +12,7 @@ import started from 'electron-squirrel-startup'
 import MailAccountService from './mail'
 import MailNotificationService from './mail/notification'
 import FumikaSQLiteDriver from './sqlite'
+import TrayService from './tray'
 import WindowService from './window'
 
 declare module 'cordis' {
@@ -29,6 +30,7 @@ async function shutdown() {
   if (shuttingDown)
     return
   shuttingDown = true
+  context.get('window')?.prepareQuit()
   await context.fiber.dispose()
   electronApp.exit(0)
 }
@@ -66,6 +68,7 @@ async function bootstrap() {
       height: 760,
     }),
     context.plugin(MailNotificationService),
+    context.plugin(TrayService),
   ])
   await Promise.all(fibers.map(fiber => fiber.await()))
 }
@@ -75,8 +78,7 @@ if (started) {
 }
 else {
   electronApp.on('window-all-closed', () => {
-    if (process.platform !== 'darwin')
-      void shutdown()
+    // Stay alive in the tray so IMAP watchers keep receiving mail
   })
 
   electronApp.on('before-quit', (event) => {

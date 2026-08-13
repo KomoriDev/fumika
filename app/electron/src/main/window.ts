@@ -25,6 +25,7 @@ export default class WindowService extends Service<Config> {
   static inject = ['app', 'env']
 
   private window: BrowserWindow | null = null
+  private quitting = false
   private readonly config: Config
   private pendingRoute?: string
 
@@ -33,16 +34,33 @@ export default class WindowService extends Service<Config> {
     this.config = config
   }
 
-  async openMail(id: string): Promise<void> {
+  async show(): Promise<void> {
     if (!this.window)
       await this.createWindow()
     const window = this.window
-    if (!window)
+    if (!window || window.isDestroyed())
       return
+    window.setSkipTaskbar(false)
     if (window.isMinimized())
       window.restore()
     window.show()
     window.focus()
+  }
+
+  private hideToTray(): void {
+    const window = this.window
+    if (!window || window.isDestroyed())
+      return
+    window.hide()
+    window.setSkipTaskbar(true)
+  }
+
+  prepareQuit(): void {
+    this.quitting = true
+  }
+
+  async openMail(id: string): Promise<void> {
+    await this.show()
     this.pendingRoute = `/mail/${encodeURIComponent(id)}`
     this.sendPendingRoute()
   }
@@ -52,8 +70,7 @@ export default class WindowService extends Service<Config> {
     await this.createWindow()
 
     const handleActivate = () => {
-      if (!this.window)
-        void this.createWindow()
+      void this.show()
     }
     this.ctx.app.on('activate', handleActivate)
 
@@ -114,6 +131,12 @@ export default class WindowService extends Service<Config> {
     this.window = window
 
     window.once('ready-to-show', () => window.show())
+    window.on('close', (event) => {
+      if (this.quitting)
+        return
+      event.preventDefault()
+      this.hideToTray()
+    })
     window.once('closed', () => {
       if (this.window === window)
         this.window = null
