@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "packageManager": "pnpm@10.28.2",
+  "description": "轻量现代的邮件客户端 / A simple, elegant mail client",
   "author": {
     "name": "KomoriDev",
     "email": "mute231010@gmail.com"
@@ -15,6 +16,7 @@
     "build:packages": "yakumo build",
     "build:webui": "pnpm --filter @fumika/webui build",
     "build:app": "pnpm --filter @fumika/electron package",
+    "make": "pnpm run build:packages && pnpm run build:webui && pnpm --filter @fumika/electron make",
     "typecheck": "pnpm -r --if-present run typecheck",
     "lint": "eslint .",
     "prepare": "node .husky/install.js"

@@ -1,0 +1,59 @@
+name: Package
+
+on:
+  push:
+    branches: [master]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: package-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact: linux
+          - os: windows-latest
+            artifact: windows
+          - os: macos-latest
+            artifact: macos
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install Linux packaging tools
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y rpm fakeroot
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm make
+        env:
+          FUMIKA_GOOGLE_CLIENT_ID: ${{ secrets.FUMIKA_GOOGLE_CLIENT_ID }}
+          FUMIKA_GOOGLE_CLIENT_SECRET: ${{ secrets.FUMIKA_GOOGLE_CLIENT_SECRET }}
+          FUMIKA_OUTLOOK_CLIENT_ID: ${{ secrets.FUMIKA_OUTLOOK_CLIENT_ID }}
+          FUMIKA_OUTLOOK_TENANT: ${{ secrets.FUMIKA_OUTLOOK_TENANT }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fumika-${{ matrix.artifact }}-${{ github.sha }}
+          path: app/electron/out/make/**
+          if-no-files-found: error
+          compression-level: 0

@@ -99,7 +99,6 @@ export async function authorizeWithBrowser(config: OAuthProviderConfig): Promise
         grant_type: 'authorization_code',
         code,
         code_verifier: codeVerifier,
-        scope: config.scopes.join(' '),
       }),
     })
     const token = await response.json() as OAuthTokenResponse
@@ -130,7 +129,6 @@ export async function refreshOAuthAuthorization(config: OAuthProviderConfig, ref
       ...(config.clientSecret && { client_secret: config.clientSecret }),
       grant_type: 'refresh_token',
       refresh_token: refreshToken,
-      scope: config.scopes.join(' '),
     }),
   })
   const token = await response.json() as OAuthTokenResponse
@@ -228,7 +226,7 @@ async function createOAuthCallback(expectedState: string): Promise<{
   const server = createServer((request, response) => {
     try {
       const url = new URL(request.url ?? '/', 'http://127.0.0.1')
-      if (url.pathname !== '/oauth/callback') {
+      if (url.pathname !== '/') {
         response.writeHead(404).end('Not found')
         return
       }
@@ -273,7 +271,7 @@ async function createOAuthCallback(expectedState: string): Promise<{
   }, 5 * 60_000)
 
   return {
-    redirectUri: `http://127.0.0.1:${address.port}/oauth/callback`,
+    redirectUri: `http://127.0.0.1:${address.port}/`,
     code: code.finally(() => clearTimeout(timeout)),
     close: () => {
       clearTimeout(timeout)

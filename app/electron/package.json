@@ -2,6 +2,7 @@
   "name": "@fumika/electron",
   "productName": "Fumika",
   "version": "0.1.0",
+  "description": "轻量现代的邮件客户端 / A simple, elegant mail client",
   "private": true,
   "author": {
     "name": "KomoriDev",
