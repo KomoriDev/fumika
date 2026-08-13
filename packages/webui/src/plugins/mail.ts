@@ -45,6 +45,14 @@ export default class MailModule extends Service {
     super(ctx, 'mailStore')
   }
 
+  async* [Service.init]() {
+    yield this.ctx.link.on('mail-message.changed', () => {
+      if (!this.loaded.size)
+        return
+      void this.reloadLoadedQueries()
+    })
+  }
+
   key(query: MailQuery): string {
     return `${query.folder}\u0000${query.query?.trim().toLowerCase() ?? ''}\u0000${query.limit ?? 200}`
   }
@@ -142,6 +150,31 @@ export default class MailModule extends Service {
     }
   }
 
+  private async reloadLoadedQueries(): Promise<void> {
+    const queries = [...this.loaded].map(parseKey)
+    try {
+      await Promise.all(queries.map(query => this.loadCached(query)))
+    }
+    catch (reason) {
+      const message = reason instanceof Error ? reason.message : String(reason)
+      this.errors.splice(0, this.errors.length, message)
+    }
+  }
+
+  private async loadCached(query: MailQuery): Promise<void> {
+    const key = this.key(query)
+    const reply = await this.ctx.link.action('mail-message.list', {
+      folder: query.folder,
+      query: query.query,
+      limit: query.limit ?? 200,
+      refresh: false,
+    })
+    this.messages.set(key, reply.messages)
+    this.loaded.add(key)
+    this.replaceCounts(reply)
+    this.errors.splice(0, this.errors.length, ...reply.errors.map(item => item.message))
+  }
+
   private replaceCounts(reply: Pick<MailMessageListReply, 'counts' | 'unreadCounts'>): void {
     Object.assign(this.counts, reply.counts)
     Object.assign(this.unreadCounts, reply.unreadCounts)
@@ -151,5 +184,14 @@ export default class MailModule extends Service {
     this.messages.clear()
     this.loaded.clear()
     this.initialRefreshStarted = false
+  }
+}
+
+function parseKey(key: string): MailQuery {
+  const [folder, query, limit] = key.split('\u0000')
+  return {
+    folder: folder as MailFolder,
+    query: query || undefined,
+    limit: Number(limit) || 200,
   }
 }

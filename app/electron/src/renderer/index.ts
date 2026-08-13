@@ -4,6 +4,12 @@ import metadata from '../../package.json'
 
 root.provide('version', metadata.version)
 
+window.addEventListener('fumika:navigate', (event) => {
+  const path = (event as CustomEvent<unknown>).detail
+  if (typeof path === 'string' && path.startsWith('/'))
+    void client.router.router.push(path)
+})
+
 async function bootstrap() {
   const linkFiber = root.plugin(LinkIpcClient)
   await Promise.all([linkFiber.await(), stateFiber.await(), mailFiber.await()])

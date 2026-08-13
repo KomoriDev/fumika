@@ -1,8 +1,8 @@
 import type { Context } from 'cordis'
-import type { BrowserWindowConstructorOptions } from 'electron'
+import type { BrowserWindowConstructorOptions, IpcMainEvent } from 'electron'
 import process from 'node:process'
 import { Service } from 'cordis'
-import { BrowserWindow, shell } from 'electron'
+import { BrowserWindow, ipcMain, shell } from 'electron'
 
 export interface RuntimeEnvironment {
   preloadPath: string
@@ -26,10 +26,25 @@ export default class WindowService extends Service<Config> {
 
   private window: BrowserWindow | null = null
   private readonly config: Config
+  private pendingRoute?: string
 
   constructor(ctx: Context, config: Config) {
     super(ctx, 'window')
     this.config = config
+  }
+
+  async openMail(id: string): Promise<void> {
+    if (!this.window)
+      await this.createWindow()
+    const window = this.window
+    if (!window)
+      return
+    if (window.isMinimized())
+      window.restore()
+    window.show()
+    window.focus()
+    this.pendingRoute = `/mail/${encodeURIComponent(id)}`
+    this.sendPendingRoute()
   }
 
   async* [Service.init]() {
@@ -42,11 +57,26 @@ export default class WindowService extends Service<Config> {
     }
     this.ctx.app.on('activate', handleActivate)
 
+    const handleRendererReady = (event: IpcMainEvent) => {
+      if (this.window?.webContents === event.sender)
+        this.sendPendingRoute()
+    }
+    ipcMain.on('fumika:renderer-ready', handleRendererReady)
+
     yield () => {
+      ipcMain.off('fumika:renderer-ready', handleRendererReady)
       this.ctx.app.off('activate', handleActivate)
       this.window?.destroy()
       this.window = null
     }
+  }
+
+  private sendPendingRoute(): void {
+    if (!this.pendingRoute || !this.window || this.window.webContents.isLoadingMainFrame())
+      return
+    const route = this.pendingRoute
+    this.pendingRoute = undefined
+    this.window.webContents.send('fumika:navigate', route)
   }
 
   private async createWindow() {
@@ -108,6 +138,7 @@ export default class WindowService extends Service<Config> {
       await window.loadURL(this.ctx.env.rendererUrl)
     else
       await window.loadFile(this.ctx.env.rendererFile)
+    this.sendPendingRoute()
   }
 }
 function toSafeExternalUrl(value: string): string | undefined {

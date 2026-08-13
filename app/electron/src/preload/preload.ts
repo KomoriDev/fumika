@@ -7,6 +7,15 @@ type SubscriptionListener = (event: Electron.IpcRendererEvent, ...args: unknown[
 let nextSubscriptionId = 0
 const subscriptions = new Map<number, { channel: string, listener: SubscriptionListener }>()
 
+window.addEventListener('DOMContentLoaded', () => {
+  ipcRenderer.send('fumika:renderer-ready')
+})
+
+ipcRenderer.on('fumika:navigate', (_event, path: unknown) => {
+  if (typeof path === 'string' && path.startsWith('/'))
+    window.dispatchEvent(new CustomEvent('fumika:navigate', { detail: path }))
+})
+
 const bridge: FumikaBridge = {
   invoke(action, payload) {
     return ipcRenderer.invoke(toActionChannel(action), payload)

@@ -67,6 +67,45 @@ export async function syncAccountMessages(
   }
   return messages
 }
+export async function syncInboxMessages(
+  account: MailAccount,
+  credential: MailCredential,
+  remoteMailbox: string,
+  afterUid: number,
+): Promise<SyncedMailMessage[]> {
+  const client = await connectImap(account, credential)
+  const messages: SyncedMailMessage[] = []
+  try {
+    const lock = await client.getMailboxLock(remoteMailbox, { readOnly: true })
+    try {
+      const uids = await client.search({ uid: `${Math.max(1, afterUid + 1)}:*` }, { uid: true })
+      if (!uids)
+        return messages
+      const newUids = uids.filter(uid => uid > afterUid)
+      if (!newUids.length)
+        return messages
+      for await (const fetched of client.fetch(newUids, {
+        uid: true,
+        flags: true,
+        envelope: true,
+        internalDate: true,
+        size: true,
+        bodyStructure: true,
+        source: true,
+      }, { uid: true })) {
+        if (fetched.source)
+          messages.push(await parseMessage(account, 'inbox', remoteMailbox, fetched))
+      }
+    }
+    finally {
+      lock.release()
+    }
+  }
+  finally {
+    await closeImap(client)
+  }
+  return messages
+}
 
 export async function updateRemoteFlags(
   account: MailAccount,

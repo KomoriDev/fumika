@@ -11,6 +11,7 @@ import { Context } from 'cordis'
 import { app as electronApp } from 'electron'
 import started from 'electron-squirrel-startup'
 import MailAccountService from './mail'
+import MailNotificationService from './mail/notification'
 import WindowService from './window'
 
 declare module 'cordis' {
@@ -39,6 +40,9 @@ async function bootstrap() {
     rendererFile: path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
   }
 
+  if (process.platform === 'win32' && !electronApp.isPackaged)
+    electronApp.setAppUserModelId(process.execPath)
+
   context.provide('app', electronApp)
   context.provide('env', env)
   context.provide('version', electronApp.getVersion())
@@ -61,6 +65,7 @@ async function bootstrap() {
       width: 1180,
       height: 760,
     }),
+    context.plugin(MailNotificationService),
   ])
   await Promise.all(fibers.map(fiber => fiber.await()))
 }

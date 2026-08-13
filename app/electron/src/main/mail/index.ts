@@ -20,8 +20,9 @@ import { RuntimeError } from '@cordisjs/plugin-database'
 import { Service } from 'cordis'
 import { safeStorage } from 'electron'
 import { authorizeWithBrowser, createOAuthProviders, fetchUserInfo, providerName, refreshOAuthAuthorization } from './oauth'
-import { markRemoteMessagesRead, matchesFolder, syncAccountMessages, updateRemoteFlags } from './receiver'
+import { markRemoteMessagesRead, matchesFolder, syncAccountMessages, syncInboxMessages, updateRemoteFlags } from './receiver'
 import { verifyImap, verifySmtp } from './transport'
+import { MailAccountWatcher } from './watcher'
 
 interface MailCredentialRow {
   accountId: string
@@ -57,11 +58,16 @@ declare module 'cordis' {
   interface Context {
     mailAccount: MailAccountService
   }
+  interface Events {
+    'mail/received': (messages: MailMessageSummary[]) => void
+  }
 }
 
 export class MailAccountService extends Service {
   static inject = ['model', 'database', 'link']
   private readonly oauthProviders = createOAuthProviders()
+  private readonly watchers = new Map<string, MailAccountWatcher>()
+  private readonly liveSyncs = new Map<string, Promise<void>>()
 
   constructor(ctx: Context) {
     super(ctx, 'mailAccount')
@@ -132,6 +138,8 @@ export class MailAccountService extends Service {
   async* [Service.init]() {
     await this.ctx.database.prepared()
     await this.backfillOAuthAvatars()
+    await this.startWatchers()
+    yield async () => this.stopWatchers()
     yield this.ctx.link.action('mail-account.list', async () => ({
       accounts: await this.list(),
       oauth: {
@@ -286,10 +294,7 @@ export class MailAccountService extends Service {
       try {
         const credential = await this.readCredential(account)
         const messages = await syncAccountMessages(account, credential, limit)
-        const syncedAt = Date.now()
-        if (messages.length) {
-          await this.ctx.database.upsert('mail_message', messages.map(message => ({ ...message, syncedAt })))
-        }
+        await this.persistMessages(messages)
         return undefined
       }
       catch (error) {
@@ -300,6 +305,73 @@ export class MailAccountService extends Service {
     if (accountIds.length)
       this.ctx.emit('link/send', 'mail-message.changed', { accountIds, refreshedAt: Date.now() })
     return results.filter((result): result is { accountId: string, message: string } => Boolean(result))
+  }
+
+  private async startWatchers(): Promise<void> {
+    const accounts = await this.ctx.database.get('mail_account', { status: 'active' })
+    for (const account of accounts)
+      this.startWatcher(account)
+  }
+
+  private startWatcher(account: MailAccount): void {
+    if (this.watchers.has(account.id))
+      return
+    const watcher = new MailAccountWatcher(account, () => this.readCredential(account), {
+      onMessage: () => this.syncLiveInbox(account),
+      onError: error => this.ctx.logger('mail').warn('real-time mailbox connection failed for %s: %s', account.mailboxAddress, error instanceof Error ? error.message : String(error)),
+    })
+    this.watchers.set(account.id, watcher)
+    watcher.start()
+  }
+
+  private async stopWatcher(accountId: string): Promise<void> {
+    const watcher = this.watchers.get(accountId)
+    if (!watcher)
+      return
+    this.watchers.delete(accountId)
+    await watcher.stop()
+  }
+
+  private async stopWatchers(): Promise<void> {
+    const watchers = [...this.watchers.values()]
+    this.watchers.clear()
+    await Promise.all(watchers.map(watcher => watcher.stop()))
+  }
+
+  private async syncLiveInbox(account: MailAccount): Promise<void> {
+    const existing = this.liveSyncs.get(account.id)
+    if (existing)
+      return existing
+    const sync = this.fetchLiveInbox(account).finally(() => this.liveSyncs.delete(account.id))
+    this.liveSyncs.set(account.id, sync)
+    return sync
+  }
+
+  private async fetchLiveInbox(account: MailAccount): Promise<void> {
+    const latest = await this.ctx.database.get('mail_message', {
+      accountId: account.id,
+      folder: 'inbox',
+    }, { sort: { uid: 'desc' }, limit: 1 })
+    const remoteMailbox = latest[0]?.remoteMailbox ?? 'INBOX'
+    const credential = await this.readCredential(account)
+    const messages = await syncInboxMessages(account, credential, remoteMailbox, latest[0]?.uid ?? 0)
+    const newMessages = await this.persistMessages(messages)
+    if (!newMessages.length)
+      return
+    const refreshedAt = Date.now()
+    this.ctx.emit('link/send', 'mail-message.changed', { accountIds: [account.id], refreshedAt })
+    this.ctx.emit('mail/received', newMessages)
+  }
+
+  private async persistMessages(messages: Array<Omit<MailMessageRow, 'syncedAt'>>): Promise<MailMessageRow[]> {
+    if (!messages.length)
+      return []
+    const existing = await this.ctx.database.get('mail_message', { id: { $in: messages.map(message => message.id) } })
+    const existingIds = new Set(existing.map(message => message.id))
+    const syncedAt = Date.now()
+    const rows = messages.map(message => ({ ...message, syncedAt }))
+    await this.ctx.database.upsert('mail_message', rows)
+    return rows.filter(message => !existingIds.has(message.id))
   }
 
   private async bindOAuth(payload: MailAccountOAuthPayload): Promise<MailAccountSummary> {
@@ -439,6 +511,7 @@ export class MailAccountService extends Service {
       throw error
     }
     await this.broadcast()
+    this.startWatcher(account)
   }
 
   private async backfillOAuthAvatars(): Promise<void> {
@@ -512,6 +585,7 @@ export class MailAccountService extends Service {
     const account = (await this.ctx.database.get('mail_account', { id }))[0]
     if (!account)
       return
+    await this.stopWatcher(id)
 
     await this.ctx.database.withTransaction(async (database) => {
       await database.remove('mail_message', { accountId: id })

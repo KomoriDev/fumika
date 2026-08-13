@@ -42,7 +42,7 @@ interface ImapAuthenticationError extends Error {
     scope?: string
   }
 }
-export async function createImapClient(server: MailAccount['imap'], credential: MailCredential, options: { verifyOnly?: boolean } = {}): Promise<ImapFlow> {
+export async function createImapClient(server: MailAccount['imap'], credential: MailCredential, options: { verifyOnly?: boolean, watch?: boolean } = {}): Promise<ImapFlow> {
   let proxy: string | undefined
   try {
     proxy = await resolveMailProxy(server)
@@ -63,10 +63,12 @@ export async function createImapClient(server: MailAccount['imap'], credential: 
     },
     verifyOnly: options.verifyOnly,
     disableAutoIdle: true,
+    maxIdleTime: options.watch ? 4 * 60_000 : undefined,
+    missingIdleCommand: options.watch ? 'NOOP' : undefined,
     logger: false,
     connectionTimeout: 20_000,
     greetingTimeout: 15_000,
-    socketTimeout: options.verifyOnly ? 20_000 : 60_000,
+    socketTimeout: options.verifyOnly ? 20_000 : options.watch ? 6 * 60_000 : 60_000,
     maxLiteralSize: options.verifyOnly ? undefined : 30 * 1024 * 1024,
     maxResponseSize: options.verifyOnly ? undefined : 32 * 1024 * 1024,
   })
