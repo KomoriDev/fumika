@@ -31,6 +31,7 @@ const config: ForgeConfig = {
     asar: true,
     prune: false,
     name: 'Fumika',
+    executableName: 'fumika',
     download: {
       unsafelyDisableChecksums: true,
     },
@@ -59,8 +60,8 @@ const config: ForgeConfig = {
       description: '轻量现代的邮件客户端 / A simple, elegant mail client',
     }),
     new MakerZIP({}, ['darwin']),
-    new MakerRpm({ options: { name: 'fumika' } }),
-    new MakerDeb({ options: { name: 'fumika' } }),
+    new MakerRpm({ options: { name: 'fumika', bin: 'fumika' } }),
+    new MakerDeb({ options: { name: 'fumika', bin: 'fumika' } }),
   ],
   plugins: [
     new VitePlugin({
