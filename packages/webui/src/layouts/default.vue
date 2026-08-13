@@ -142,10 +142,10 @@ function openAccountSetup(): void {
       <div class="min-h-0 flex-1">
         <section
           role="main"
-          class="router-scrollbar h-full min-w-0 overflow-y-auto rounded-xl bg-background ring-1 ring-border/60"
+          class="router-scrollbar relative h-full min-w-0 overflow-y-auto rounded-xl bg-background ring-1 ring-border/60"
         >
           <RouterView v-slot="{ Component }">
-            <Transition name="page" mode="out-in">
+            <Transition name="page" type="transition">
               <component :is="Component" :key="$route.path" />
             </Transition>
           </RouterView>
