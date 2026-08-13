@@ -2,10 +2,16 @@ shellEmulator: true
 
 trustPolicy: no-downgrade
 
+nodeLinker: hoisted
+
+autoInstallPeers: false
+
 packages:
   - app/*
   - packages/*
   - plugins/*
+
 onlyBuiltDependencies:
   - electron-winstaller
   - esbuild
+
