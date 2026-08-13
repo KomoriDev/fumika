@@ -82,10 +82,7 @@ async function bindOAuth(provider: 'google' | 'outlook'): Promise<void> {
       throw new Error('Mailbox service is unavailable.')
     const account = await link.value.action('mail-account.bind-oauth', { provider }, { timeout: 6 * 60_000 })
     accounts.value = [...accounts.value.filter(item => item.id !== account.id), account]
-    mailStore.value?.resetForAccountChange()
-    await mailStore.value?.refreshOnce({ folder: 'inbox', limit: 200 })
-    ctx.client.router.setMailAccountsAvailable(true)
-    await router.replace('/inbox')
+    await enterInbox()
   }
   catch (reason) {
     error.value = messageOf(reason)
@@ -125,12 +122,9 @@ async function bindManual(): Promise<void> {
       throw new Error('Mailbox service is unavailable.')
     const account = await link.value.action('mail-account.bind-manual', payload, { timeout: 60_000 })
     accounts.value = [...accounts.value.filter(item => item.id !== account.id), account]
-    mailStore.value?.resetForAccountChange()
-    await mailStore.value?.refreshOnce({ folder: 'inbox', limit: 200 })
     manualOpen.value = false
     resetManual()
-    ctx.client.router.setMailAccountsAvailable(true)
-    await router.replace('/inbox')
+    await enterInbox()
   }
   catch (reason) {
     error.value = messageOf(reason)
@@ -138,6 +132,12 @@ async function bindManual(): Promise<void> {
   finally {
     manualBusy.value = false
   }
+}
+
+async function enterInbox(): Promise<void> {
+  mailStore.value?.resetForAccountChange()
+  ctx.client.router.setMailAccountsAvailable(true)
+  await router.replace('/inbox')
 }
 
 async function removeAccount(account: MailAccountSummary): Promise<void> {
