@@ -1,6 +1,7 @@
 import { Context } from 'cordis'
 import { ClientService } from './client'
 import { installCore } from './core'
+import MailModule from './plugins/mail'
 import FrontendStateService from './plugins/state'
 import './style.css'
 
@@ -17,6 +18,7 @@ export * from './plugins/theme'
 
 export const root = new Context()
 export const stateFiber = root.plugin(FrontendStateService)
+export const mailFiber = root.plugin(MailModule)
 export const client = new ClientService(root)
 
 installCore(root)

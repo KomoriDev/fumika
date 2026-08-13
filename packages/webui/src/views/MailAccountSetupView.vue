@@ -21,6 +21,7 @@ const ctx = useContext()
 const link = useInject('link')
 const router = useRouter()
 const accounts = ref<MailAccountSummary[]>([])
+const mailStore = useInject('mailStore')
 const oauthAvailable = reactive({ google: false, outlook: false })
 const loading = ref(true)
 const busyProvider = ref<'google' | 'outlook'>()
@@ -81,6 +82,8 @@ async function bindOAuth(provider: 'google' | 'outlook'): Promise<void> {
       throw new Error('Mailbox service is unavailable.')
     const account = await link.value.action('mail-account.bind-oauth', { provider }, { timeout: 6 * 60_000 })
     accounts.value = [...accounts.value.filter(item => item.id !== account.id), account]
+    mailStore.value?.resetForAccountChange()
+    await mailStore.value?.refreshOnce({ folder: 'inbox', limit: 200 })
     ctx.client.router.setMailAccountsAvailable(true)
     await router.replace('/inbox')
   }
@@ -122,6 +125,8 @@ async function bindManual(): Promise<void> {
       throw new Error('Mailbox service is unavailable.')
     const account = await link.value.action('mail-account.bind-manual', payload, { timeout: 60_000 })
     accounts.value = [...accounts.value.filter(item => item.id !== account.id), account]
+    mailStore.value?.resetForAccountChange()
+    await mailStore.value?.refreshOnce({ folder: 'inbox', limit: 200 })
     manualOpen.value = false
     resetManual()
     ctx.client.router.setMailAccountsAvailable(true)

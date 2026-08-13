@@ -328,22 +328,6 @@
     animation: fumika-tooltip-out 80ms var(--motion-ease-in) both;
   }
 
-  .page-enter-active {
-    transition: opacity var(--motion-duration-fast) var(--motion-ease-out), filter var(--motion-duration-fast) var(--motion-ease-out);
-  }
-
-  .page-leave-active {
-    transition: opacity 80ms var(--motion-ease-in);
-  }
-
-  .page-enter-from {
-    opacity: 0;
-    filter: blur(1px);
-  }
-
-  .page-leave-to {
-    opacity: 0;
-  }
 }
 
 @keyframes fumika-dialog-in {
@@ -427,11 +411,6 @@
   [data-slot="dropdown-menu-sub-content"],
   [data-slot="tooltip-content"] {
     animation: none !important;
-  }
-
-  .page-enter-active,
-  .page-leave-active {
-    transition-duration: 1ms !important;
   }
 }
 

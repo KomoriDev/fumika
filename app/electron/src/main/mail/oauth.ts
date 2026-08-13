@@ -121,6 +121,30 @@ export async function authorizeWithBrowser(config: OAuthProviderConfig): Promise
   }
 }
 
+export async function refreshOAuthAuthorization(config: OAuthProviderConfig, refreshToken: string): Promise<OAuthAuthorization> {
+  const response = await fetchOAuth(config.provider, 'token refresh', config.tokenUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: config.clientId,
+      ...(config.clientSecret && { client_secret: config.clientSecret }),
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+      scope: config.scopes.join(' '),
+    }),
+  })
+  const token = await response.json() as OAuthTokenResponse
+  if (!response.ok || token.error || !token.access_token)
+    throw new Error(token.error_description || token.error || `${providerName(config.provider)} token refresh failed.`)
+  return {
+    accessToken: token.access_token,
+    refreshToken: token.refresh_token || refreshToken,
+    expiresAt: Date.now() + Math.max(0, token.expires_in ?? 0) * 1000,
+    tokenType: token.token_type ?? 'Bearer',
+    grantedScopes: token.scope?.split(/\s+/).filter(Boolean) ?? config.scopes,
+  }
+}
+
 export async function fetchUserInfo(config: OAuthProviderConfig, accessToken: string): Promise<OAuthUserInfo> {
   const response = await fetchOAuth(config.provider, 'account lookup', config.userInfoUrl, {
     headers: { Authorization: `Bearer ${accessToken}` },

@@ -5,6 +5,7 @@ import SidebarShortcutsControl from './components/app-sidebar/SidebarShortcutsCo
 import { mailFolderLabels, mailFolderPattern, mailFolders } from './mail'
 import { resolveSidebarShortcuts } from './sidebar'
 import MailAccountSetupView from './views/MailAccountSetupView.vue'
+import MailDetailView from './views/MailDetailView.vue'
 import MailListView from './views/MailListView.vue'
 
 const GeneralSettings = Schema.object({
@@ -97,6 +98,15 @@ export function installCore(ctx: Context): void {
     icon: 'mail',
     home: '/inbox',
     component: MailListView,
+  })
+
+  ctx.client.router.page({
+    id: 'mail-detail',
+    path: '/mail/:id',
+    name: 'Mail detail',
+    description: 'Read a received message',
+    icon: 'mail',
+    component: MailDetailView,
   })
 
   ctx.client.action.register('navigation.back', () => ctx.client.router.router.back())

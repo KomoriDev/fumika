@@ -1,4 +1,17 @@
-import type { MailAccount, MailAccountManualPayload, MailAccountOAuthPayload, MailAccountSummary } from '@fumika/state'
+import type {
+  MailAccount,
+  MailAccountManualPayload,
+  MailAccountOAuthPayload,
+  MailAccountSummary,
+  MailFolder,
+  MailMessageDetail,
+  MailMessageListPayload,
+  MailMessageListReply,
+  MailMessageSetFlagsPayload,
+  MailMessagesMarkReadPayload,
+  MailMessagesMarkReadReply,
+  MailMessageSummary,
+} from '@fumika/state'
 import type { Context } from 'cordis'
 import { Buffer } from 'node:buffer'
 import { randomUUID } from 'node:crypto'
@@ -6,7 +19,8 @@ import process from 'node:process'
 import { RuntimeError } from '@cordisjs/plugin-database'
 import { Service } from 'cordis'
 import { safeStorage } from 'electron'
-import { authorizeWithBrowser, createOAuthProviders, fetchUserInfo, providerName } from './oauth'
+import { authorizeWithBrowser, createOAuthProviders, fetchUserInfo, providerName, refreshOAuthAuthorization } from './oauth'
+import { markRemoteMessagesRead, matchesFolder, syncAccountMessages, updateRemoteFlags } from './receiver'
 import { verifyImap, verifySmtp } from './transport'
 
 interface MailCredentialRow {
@@ -24,10 +38,18 @@ interface StoredOAuthCredential {
   tokenType: string
 }
 
+interface MailMessageRow extends MailMessageDetail {
+  uid: number
+  remoteMailbox: string
+  sourceSize: number
+  syncedAt: number
+}
+
 declare module '@cordisjs/plugin-database' {
   interface Tables {
     mail_account: MailAccount
     mail_credential: MailCredentialRow
+    mail_message: MailMessageRow
   }
 }
 
@@ -74,6 +96,37 @@ export class MailAccountService extends Service {
     }, {
       primary: 'accountId',
     })
+
+    ctx.model.extend('mail_message', {
+      id: 'string(2048)',
+      accountId: 'uuid',
+      mailboxAddress: 'string(320)',
+      accountName: 'string(255)',
+      accountAvatarUrl: { type: 'string', length: 2048 },
+      folder: 'string(32)',
+      sender: 'json',
+      subject: 'text',
+      preview: 'text',
+      receivedAt: 'unsigned',
+      unread: 'boolean',
+      starred: 'boolean',
+      hasAttachments: 'boolean',
+      messageId: 'string(2048)',
+      to: 'json',
+      cc: 'json',
+      replyTo: 'json',
+      text: 'text',
+      html: 'text',
+      attachments: 'json',
+      uid: 'unsigned',
+      remoteMailbox: 'string(2048)',
+      sourceSize: 'unsigned',
+      syncedAt: 'unsigned',
+    }, {
+      primary: 'id',
+      unique: [['accountId', 'remoteMailbox', 'uid']],
+      indexes: ['accountId', 'receivedAt', 'folder'],
+    })
   }
 
   async* [Service.init]() {
@@ -93,6 +146,11 @@ export class MailAccountService extends Service {
       await this.remove(id)
       return { ok: true as const }
     })
+
+    yield this.ctx.link.action('mail-message.list', payload => this.listMessages(payload || undefined))
+    yield this.ctx.link.action('mail-message.get', ({ id }) => this.getMessage(id))
+    yield this.ctx.link.action('mail-message.set-flags', payload => this.setMessageFlags(payload))
+    yield this.ctx.link.action('mail-message.mark-read', payload => this.markMessagesRead(payload))
   }
 
   async list(): Promise<MailAccountSummary[]> {
@@ -100,6 +158,148 @@ export class MailAccountService extends Service {
       sort: { createdAt: 'asc' },
     })
     return accounts.map(toSummary)
+  }
+
+  private async listMessages(payload?: MailMessageListPayload): Promise<MailMessageListReply> {
+    const limit = normalizeMessageLimit(payload?.limit)
+    const errors = payload?.refresh === true ? await this.refreshMessages(limit) : []
+    const folder = payload?.folder ?? 'inbox'
+    const query = payload?.query?.trim().toLowerCase() ?? ''
+    const rows = await this.ctx.database.get('mail_message', {}, {
+      sort: { receivedAt: 'desc' },
+      limit: Math.min(1000, limit * Math.max(1, (await this.list()).length) * 5),
+    })
+    const messages = rows
+      .filter(message => matchesFolder(message, folder))
+      .filter(message => !query || messageSearchText(message).includes(query))
+      .slice(0, limit)
+      .map(toMessageSummary)
+    const { counts, unreadCounts } = await this.getMessageCounts()
+    return { messages, refreshedAt: Date.now(), errors, counts, unreadCounts }
+  }
+
+  private async getMessageCounts(): Promise<{ counts: Record<MailFolder, number>, unreadCounts: Record<MailFolder, number> }> {
+    const rows = await this.ctx.database.get('mail_message', {})
+    const counts = createEmptyFolderCounts()
+    const unreadCounts = createEmptyFolderCounts()
+    for (const message of rows) {
+      counts[message.folder]++
+      if (message.unread)
+        unreadCounts[message.folder]++
+      if (message.starred && message.folder !== 'trash') {
+        counts.starred++
+        if (message.unread)
+          unreadCounts.starred++
+      }
+    }
+    return { counts, unreadCounts }
+  }
+
+  private async getMessage(id: string): Promise<MailMessageDetail> {
+    const row = (await this.ctx.database.get('mail_message', { id }))[0]
+    if (!row)
+      throw new Error('Mail message was not found. Refresh the mailbox and try again.')
+    if (!row.unread)
+      return toMessageDetail(row)
+    await this.ctx.database.set('mail_message', { id }, { unread: false })
+    const updated: MailMessageRow = { ...row, unread: false }
+    this.ctx.emit('link/send', 'mail-message.changed', { accountIds: [row.accountId], refreshedAt: Date.now() })
+    void this.syncMessageFlags(updated, { unread: false })
+    return toMessageDetail(updated)
+  }
+
+  private async syncMessageFlags(message: MailMessageRow, changes: { unread?: boolean, starred?: boolean }): Promise<void> {
+    try {
+      const account = (await this.ctx.database.get('mail_account', { id: message.accountId }))[0]
+      if (!account)
+        return
+      const credential = await this.readCredential(account)
+      await updateRemoteFlags(account, credential, message, changes)
+    }
+    catch (error) {
+      this.ctx.logger('mail').warn('failed to synchronize message flags: %s', error instanceof Error ? error.message : String(error))
+    }
+  }
+
+  private async setMessageFlags(payload: MailMessageSetFlagsPayload): Promise<MailMessageSummary> {
+    if (payload.unread === undefined && payload.starred === undefined)
+      throw new Error('No message flag change was requested.')
+    const row = (await this.ctx.database.get('mail_message', { id: payload.id }))[0]
+    if (!row)
+      throw new Error('Mail message was not found.')
+    const update = {
+      ...(payload.unread !== undefined && { unread: payload.unread }),
+      ...(payload.starred !== undefined && { starred: payload.starred }),
+    }
+    await this.ctx.database.set('mail_message', { id: row.id }, update)
+    const message: MailMessageRow = { ...row, ...update }
+    this.ctx.emit('link/send', 'mail-message.changed', { accountIds: [row.accountId], refreshedAt: Date.now() })
+    void this.syncMessageFlags(message, payload)
+    return toMessageSummary(message)
+  }
+
+  private async markMessagesRead(payload: MailMessagesMarkReadPayload): Promise<MailMessagesMarkReadReply> {
+    const ids = [...new Set(payload.ids.filter(id => typeof id === 'string' && id))]
+    if (!ids.length)
+      return { messages: [] }
+    if (ids.length > 200)
+      throw new Error('At most 200 messages can be marked as read at once.')
+    const rows = await this.ctx.database.get('mail_message', { id: { $in: ids } })
+    const unread = rows.filter(message => message.unread)
+    if (!unread.length)
+      return { messages: rows.map(toMessageSummary) }
+    await this.ctx.database.set('mail_message', { id: { $in: unread.map(message => message.id) } }, { unread: false })
+    const updated = unread.map(message => ({ ...message, unread: false }))
+    const accountIds = [...new Set(updated.map(message => message.accountId))]
+    this.ctx.emit('link/send', 'mail-message.changed', { accountIds, refreshedAt: Date.now() })
+    void this.syncMessagesRead(updated)
+    const updatedById = new Map(updated.map(message => [message.id, message]))
+    return { messages: rows.map(message => toMessageSummary(updatedById.get(message.id) ?? message)) }
+  }
+
+  private async syncMessagesRead(messages: MailMessageRow[]): Promise<void> {
+    const byAccount = new Map<string, MailMessageRow[]>()
+    for (const message of messages) {
+      const accountMessages = byAccount.get(message.accountId) ?? []
+      accountMessages.push(message)
+      byAccount.set(message.accountId, accountMessages)
+    }
+    await Promise.all([...byAccount].map(async ([accountId, accountMessages]) => {
+      try {
+        const account = (await this.ctx.database.get('mail_account', { id: accountId }))[0]
+        if (!account)
+          return
+        const credential = await this.readCredential(account)
+        await markRemoteMessagesRead(account, credential, accountMessages)
+      }
+      catch (error) {
+        this.ctx.logger('mail').warn('failed to synchronize read flags: %s', error instanceof Error ? error.message : String(error))
+      }
+    }))
+  }
+
+  private async refreshMessages(limit: number): Promise<Array<{ accountId: string, message: string }>> {
+    const accounts = await this.ctx.database.get('mail_account', { status: 'active' }, {
+      sort: { createdAt: 'asc' },
+    })
+    const results = await Promise.all(accounts.map(async (account) => {
+      try {
+        const credential = await this.readCredential(account)
+        const messages = await syncAccountMessages(account, credential, limit)
+        const syncedAt = Date.now()
+        if (messages.length) {
+          await this.ctx.database.upsert('mail_message', messages.map(message => ({ ...message, syncedAt })))
+        }
+        return undefined
+      }
+      catch (error) {
+        return { accountId: account.id, message: error instanceof Error ? error.message : String(error) }
+      }
+    }))
+    const accountIds = accounts.map(account => account.id)
+    if (accountIds.length)
+      this.ctx.emit('link/send', 'mail-message.changed', { accountIds, refreshedAt: Date.now() })
+    return results.filter((result): result is { accountId: string, message: string } => Boolean(result))
   }
 
   private async bindOAuth(payload: MailAccountOAuthPayload): Promise<MailAccountSummary> {
@@ -263,6 +463,43 @@ export class MailAccountService extends Service {
     }
   }
 
+  private async readCredential(account: MailAccount): Promise<{ password?: string, accessToken?: string }> {
+    const row = (await this.ctx.database.get('mail_credential', { accountId: account.id }))[0]
+    if (!row)
+      throw new Error(`Credentials for ${account.mailboxAddress} are unavailable.`)
+    const { result } = await safeStorage.decryptStringAsync(Buffer.from(row.encryptedPayload))
+    if (row.kind === 'password') {
+      const credential = JSON.parse(result) as { password?: unknown }
+      const password = typeof credential.password === 'string' ? credential.password : ''
+      if (!password)
+        throw new Error(`Password for ${account.mailboxAddress} is unavailable.`)
+      return { password }
+    }
+    let credential = JSON.parse(result) as StoredOAuthCredential
+    if (credential.expiresAt <= Date.now() + 60_000) {
+      const provider = account.provider === 'google' || account.provider === 'outlook'
+        ? this.oauthProviders[account.provider]
+        : undefined
+      if (!provider || !credential.refreshToken)
+        throw new Error(`${account.mailboxAddress} needs to be reconnected because its OAuth session expired.`)
+      assertMailScope(provider.provider, account.grantedScopes)
+      credential = await refreshOAuthAuthorization(provider, credential.refreshToken)
+      await this.storeCredential(row, credential)
+    }
+    if (!credential.accessToken)
+      throw new Error(`OAuth access token for ${account.mailboxAddress} is unavailable.`)
+    return { accessToken: credential.accessToken }
+  }
+
+  private async storeCredential(row: MailCredentialRow, credential: StoredOAuthCredential): Promise<void> {
+    const encryptedPayload = await encryptCredential(credential)
+    await this.ctx.database.set('mail_credential', { accountId: row.accountId }, {
+      encryptedPayload,
+      formatVersion: 1,
+      updatedAt: Date.now(),
+    })
+  }
+
   private async readOAuthCredential(accountId: string): Promise<StoredOAuthCredential> {
     const row = (await this.ctx.database.get('mail_credential', { accountId }))[0]
     if (!row || row.kind !== 'oauth2')
@@ -277,6 +514,7 @@ export class MailAccountService extends Service {
       return
 
     await this.ctx.database.withTransaction(async (database) => {
+      await database.remove('mail_message', { accountId: id })
       await database.remove('mail_credential', { accountId: id })
       await database.remove('mail_account', { id })
     })
@@ -285,6 +523,64 @@ export class MailAccountService extends Service {
 
   private async broadcast(): Promise<void> {
     this.ctx.emit('link/send', 'mail-account.changed', { accounts: await this.list() })
+  }
+}
+
+function createEmptyFolderCounts(): Record<MailFolder, number> {
+  return {
+    inbox: 0,
+    starred: 0,
+    snoozed: 0,
+    sent: 0,
+    drafts: 0,
+    archive: 0,
+    trash: 0,
+  }
+}
+
+function normalizeMessageLimit(value: number | undefined): number {
+  if (value === undefined)
+    return 100
+  if (!Number.isFinite(value))
+    return 100
+  return Math.max(1, Math.min(200, Math.trunc(value)))
+}
+
+function messageSearchText(message: MailMessageRow): string {
+  const addresses = [message.sender, ...message.to, ...message.cc]
+    .map(address => `${address.name ?? ''} ${address.address}`)
+    .join(' ')
+  return `${addresses} ${message.subject} ${message.preview}`.toLowerCase()
+}
+
+function toMessageSummary(message: MailMessageRow): MailMessageSummary {
+  return {
+    id: message.id,
+    accountId: message.accountId,
+    mailboxAddress: message.mailboxAddress,
+    accountName: message.accountName,
+    accountAvatarUrl: message.accountAvatarUrl,
+    folder: message.folder,
+    sender: message.sender,
+    subject: message.subject,
+    preview: message.preview,
+    receivedAt: message.receivedAt,
+    unread: message.unread,
+    starred: message.starred,
+    hasAttachments: message.hasAttachments,
+  }
+}
+
+function toMessageDetail(message: MailMessageRow): MailMessageDetail {
+  return {
+    ...toMessageSummary(message),
+    messageId: message.messageId,
+    to: message.to,
+    cc: message.cc,
+    replyTo: message.replyTo,
+    text: message.text,
+    html: message.html,
+    attachments: message.attachments,
   }
 }
 

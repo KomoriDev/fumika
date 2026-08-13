@@ -1,88 +1,121 @@
 <script setup lang="ts">
-import { Avatar, AvatarFallback } from '@fumika/ui/avatar'
+import type { MailMessageSummary } from '@fumika/state'
+import { Avatar, AvatarFallback, AvatarImage } from '@fumika/ui/avatar'
 import { Badge } from '@fumika/ui/badge'
 import { Button } from '@fumika/ui/button'
-import { CheckCheck, Inbox, MailSearch, Paperclip, Star } from '@lucide/vue'
-import { computed, reactive } from 'vue'
+import { CheckCheck, Inbox, MailSearch, Paperclip, RefreshCw, Star, TriangleAlert } from '@lucide/vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useInject } from '@/context'
 import {
-  demoMails,
+  avatarClass,
+  formatMailTime,
+  initials,
   mailFolderDescriptions,
   mailFolderLabels,
   resolveMailFolder,
+  senderName,
 } from '@/mail'
 
 const route = useRoute()
 const router = useRouter()
+const link = useInject('link')
 const appState = useInject('appState')
+const mailStore = useInject('mailStore')
 const preferences = computed(() => appState.value?.data.app.preferences ?? {
   messagePreviews: true,
   compactDensity: false,
   desktopNotifications: true,
 })
-const mails = reactive(demoMails.map(mail => ({
-  ...mail,
-  labels: [...mail.labels],
-})))
+const loading = ref(false)
+const refreshing = ref(false)
+const markingRead = ref(false)
+const error = ref('')
 
 const activeFolder = computed(() => resolveMailFolder(route.params.folder))
-const searchTerm = computed(() => typeof route.query.q === 'string' ? route.query.q.trim().toLowerCase() : '')
-const activeLabel = computed(() => {
-  const label = route.query.label
-  if (label === 'work' || label === 'personal' || label === 'receipts')
-    return label
-  return undefined
+const searchTerm = computed(() => typeof route.query.q === 'string' ? route.query.q.trim() : '')
+const query = computed(() => ({ folder: activeFolder.value, query: searchTerm.value || undefined, limit: 200 }))
+const mails = computed(() => mailStore.value?.get(query.value) ?? [])
+const accountErrors = computed(() => mailStore.value?.errors ?? [])
+const unreadCount = computed(() => {
+  if (!searchTerm.value && activeFolder.value === 'inbox')
+    return mailStore.value?.unreadCounts.inbox ?? 0
+  return mails.value.filter(mail => mail.unread).length
 })
-
-const labelTitle = computed(() => activeLabel.value
-  ? activeLabel.value.charAt(0).toUpperCase() + activeLabel.value.slice(1)
-  : undefined)
-
-function matchesFolder(mail: typeof mails[number]) {
-  const folder = activeFolder.value
-  if (folder === 'starred')
-    return mail.starred && mail.folder !== 'trash'
-  if (folder === 'snoozed')
-    return mail.snoozed && mail.folder === 'inbox'
-  if (folder === 'inbox')
-    return mail.folder === 'inbox' && !mail.snoozed
-  return mail.folder === folder
-}
-
-const visibleMails = computed(() => mails.filter((mail) => {
-  if (!matchesFolder(mail))
-    return false
-  if (activeLabel.value && !mail.labels.includes(activeLabel.value))
-    return false
-  if (!searchTerm.value)
-    return true
-
-  const searchableText = `${mail.sender} ${mail.subject} ${mail.preview}`.toLowerCase()
-  return searchableText.includes(searchTerm.value)
-}))
-
-const unreadCount = computed(() => visibleMails.value.filter(mail => mail.unread).length)
 const folderTitle = computed(() => mailFolderLabels[activeFolder.value])
 const folderDescription = computed(() => mailFolderDescriptions[activeFolder.value])
 
-function toggleStar(mail: typeof mails[number]) {
+onMounted(() => {
+  if (!mailStore.value?.has(query.value))
+    void loadMessages(false)
+  mailStore.value?.refreshOnce(query.value)
+})
+
+watch([activeFolder, searchTerm], () => void loadMessages(false))
+
+async function loadMessages(refresh: boolean): Promise<void> {
+  if (refresh)
+    refreshing.value = true
+  else if (!mailStore.value?.has(query.value))
+    loading.value = true
+  error.value = ''
+  try {
+    if (!mailStore.value)
+      throw new Error('Mailbox service is unavailable.')
+    await mailStore.value.load(query.value, refresh)
+  }
+  catch (reason) {
+    error.value = messageOf(reason)
+  }
+  finally {
+    loading.value = false
+    refreshing.value = false
+  }
+}
+
+async function toggleStar(mail: MailMessageSummary): Promise<void> {
+  const previous = mail.starred
   mail.starred = !mail.starred
+  try {
+    if (!link.value)
+      throw new Error('Mailbox service is unavailable.')
+    const updated = await link.value.action('mail-message.set-flags', { id: mail.id, starred: mail.starred })
+    mailStore.value?.replaceMessage(updated)
+  }
+  catch (reason) {
+    mail.starred = previous
+    error.value = messageOf(reason)
+  }
 }
 
-function markRead(mail: typeof mails[number]) {
-  mail.unread = false
+async function markAllRead(): Promise<void> {
+  const unread = mails.value.filter(mail => mail.unread)
+  if (!unread.length || !link.value || markingRead.value)
+    return
+  markingRead.value = true
+  error.value = ''
+  try {
+    const reply = await link.value.action('mail-message.mark-read', { ids: unread.map(mail => mail.id) })
+    for (const message of reply.messages)
+      mailStore.value?.replaceMessage(message)
+  }
+  catch (reason) {
+    error.value = messageOf(reason)
+  }
+  finally {
+    markingRead.value = false
+  }
 }
 
-function markAllRead() {
-  for (const mail of visibleMails.value)
-    mail.unread = false
+function openMessage(mail: MailMessageSummary): void {
+  void router.push({
+    path: `/mail/${encodeURIComponent(mail.id)}`,
+    query: { from: route.fullPath },
+  })
 }
 
-function clearLabel() {
-  const query = { ...route.query }
-  delete query.label
-  void router.replace({ query })
+function messageOf(reason: unknown): string {
+  return reason instanceof Error ? reason.message : String(reason)
 }
 </script>
 
@@ -95,11 +128,8 @@ function clearLabel() {
             <h1 class="text-xl font-semibold tracking-tight text-foreground">
               {{ folderTitle }}
             </h1>
-            <Badge v-if="labelTitle" variant="secondary" class="gap-1.5">
-              {{ labelTitle }}
-              <button type="button" class="rounded-sm text-muted-foreground hover:text-foreground" aria-label="Clear label filter" @click="clearLabel">
-                ×
-              </button>
+            <Badge variant="secondary">
+              All accounts
             </Badge>
           </div>
           <p class="mt-1 text-sm text-muted-foreground">
@@ -107,34 +137,53 @@ function clearLabel() {
           </p>
         </div>
 
-        <Button
-          variant="ghost"
-          size="sm"
-          class="shrink-0 gap-2"
-          :disabled="unreadCount === 0"
-          @click="markAllRead"
-        >
-          <CheckCheck />
-          Mark all read
-        </Button>
+        <div class="flex shrink-0 items-center gap-1">
+          <Button variant="ghost" size="sm" class="gap-2" :disabled="refreshing" @click="loadMessages(true)">
+            <RefreshCw :class="refreshing ? 'animate-spin' : ''" />
+            Refresh
+          </Button>
+          <Button variant="ghost" size="sm" class="gap-2" :disabled="unreadCount === 0 || markingRead" @click="markAllRead">
+            <CheckCheck />
+            Mark all read
+          </Button>
+        </div>
       </div>
 
       <div class="mt-4 flex items-center justify-between gap-4 text-xs text-muted-foreground">
-        <span>{{ visibleMails.length }} {{ visibleMails.length === 1 ? 'message' : 'messages' }}</span>
+        <span>{{ mails.length }} {{ mails.length === 1 ? 'message' : 'messages' }}</span>
         <span v-if="unreadCount">{{ unreadCount }} unread</span>
+      </div>
+
+      <div v-if="error" class="mt-3 flex items-start gap-2 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+        <TriangleAlert class="mt-0.5 size-3.5 shrink-0" />
+        {{ error }}
+      </div>
+      <div v-else-if="accountErrors.length" class="mt-3 flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+        <TriangleAlert class="mt-0.5 size-3.5 shrink-0" />
+        <span>{{ accountErrors.join(' · ') }}</span>
       </div>
     </header>
 
-    <div v-if="visibleMails.length" class="divide-y divide-border/70">
+    <div v-if="loading" class="grid min-h-105 place-items-center text-sm text-muted-foreground">
+      <span class="flex items-center gap-2">
+        <RefreshCw class="size-4 animate-spin" />
+        Receiving mail from connected accounts…
+      </span>
+    </div>
+
+    <div v-else-if="mails.length" class="divide-y divide-border/70">
       <article
-        v-for="mail in visibleMails"
+        v-for="mail in mails"
         :key="mail.id"
-        class="group grid cursor-default grid-cols-[28px_36px_minmax(120px,0.42fr)_minmax(220px,1fr)_78px] items-center gap-3 px-5 transition-colors"
+        tabindex="0"
+        role="link"
+        class="group grid cursor-pointer grid-cols-[28px_36px_minmax(120px,0.42fr)_minmax(220px,1fr)_96px] items-center gap-3 px-5 outline-none transition-colors focus-visible:bg-muted/70"
         :class="[
           mail.unread ? 'bg-primary/5 hover:bg-primary/8' : 'bg-background hover:bg-muted/50',
           preferences.compactDensity ? 'py-2' : 'py-3',
         ]"
-        @click="markRead(mail)"
+        @click="openMessage(mail)"
+        @keydown.enter="openMessage(mail)"
       >
         <button
           type="button"
@@ -147,14 +196,18 @@ function clearLabel() {
         </button>
 
         <Avatar size="sm">
-          <AvatarFallback class="text-[10px] font-semibold" :class="mail.avatarClass">
-            {{ mail.initials }}
+          <AvatarImage v-if="mail.accountAvatarUrl" :src="mail.accountAvatarUrl" :alt="mail.accountName" />
+          <AvatarFallback class="text-[10px] font-semibold" :class="avatarClass(mail.sender.address)">
+            {{ initials(senderName(mail.sender)) }}
           </AvatarFallback>
         </Avatar>
 
         <div class="min-w-0">
           <p class="truncate text-sm" :class="mail.unread ? 'font-semibold text-foreground' : 'font-medium text-foreground/80'">
-            {{ mail.sender }}
+            {{ senderName(mail.sender) }}
+          </p>
+          <p class="truncate text-[11px] text-muted-foreground">
+            {{ mail.mailboxAddress }}
           </p>
         </div>
 
@@ -163,24 +216,15 @@ function clearLabel() {
             <p class="truncate text-sm" :class="mail.unread ? 'font-semibold text-foreground' : 'font-medium text-foreground/85'">
               {{ mail.subject }}
             </p>
-            <Paperclip v-if="mail.attachment" class="size-3.5 shrink-0 text-muted-foreground" aria-label="Has attachment" />
+            <Paperclip v-if="mail.hasAttachments" class="size-3.5 shrink-0 text-muted-foreground" aria-label="Has attachment" />
           </div>
-          <div v-if="preferences.messagePreviews" class="mt-0.5 flex min-w-0 items-center gap-2">
-            <p class="truncate text-xs text-muted-foreground">
-              {{ mail.preview }}
-            </p>
-            <span
-              v-for="label in mail.labels"
-              :key="label"
-              class="hidden shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] capitalize text-muted-foreground xl:inline"
-            >
-              {{ label }}
-            </span>
-          </div>
+          <p v-if="preferences.messagePreviews" class="mt-0.5 truncate text-xs text-muted-foreground">
+            {{ mail.preview || 'No text preview available' }}
+          </p>
         </div>
 
         <time class="text-right text-xs" :class="mail.unread ? 'font-semibold text-foreground' : 'text-muted-foreground'">
-          {{ mail.time }}
+          {{ formatMailTime(mail.receivedAt) }}
         </time>
       </article>
     </div>
@@ -194,8 +238,8 @@ function clearLabel() {
         <h2 class="mt-4 text-base font-semibold">
           {{ searchTerm ? 'No matching mail' : `Nothing in ${folderTitle.toLowerCase()}` }}
         </h2>
-        <p class="mt-1 text-sm/6  text-muted-foreground">
-          {{ searchTerm ? 'Try another sender, subject, or keyword.' : 'New messages will appear here when they arrive.' }}
+        <p class="mt-1 text-sm/6 text-muted-foreground">
+          {{ searchTerm ? 'Try another sender, subject, or keyword.' : 'New messages from every connected account will appear here.' }}
         </p>
       </div>
     </div>

@@ -7,21 +7,9 @@ import { mailFolderLabels, mailFolders } from './mail'
 export interface SidebarMailbox {
   readonly folder: MailFolder
   readonly label: string
-  readonly count: number
   readonly icon: Component
 }
-
 export type SidebarShortcutFolders = [MailFolder, MailFolder, MailFolder, MailFolder]
-
-const mailboxCounts: Record<MailFolder, number> = {
-  inbox: 7,
-  starred: 5,
-  snoozed: 2,
-  sent: 0,
-  drafts: 2,
-  archive: 0,
-  trash: 0,
-}
 
 const mailboxIcons: Record<MailFolder, Component> = {
   inbox: Inbox,
@@ -36,7 +24,6 @@ const mailboxIcons: Record<MailFolder, Component> = {
 export const sidebarMailboxes: readonly SidebarMailbox[] = mailFolders.map(folder => ({
   folder,
   label: mailFolderLabels[folder],
-  count: mailboxCounts[folder],
   icon: mailboxIcons[folder],
 }))
 

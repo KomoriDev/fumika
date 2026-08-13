@@ -42,14 +42,13 @@ interface ImapAuthenticationError extends Error {
     scope?: string
   }
 }
-
-export async function verifyImap(server: MailAccount['imap'], credential: MailCredential): Promise<void> {
+export async function createImapClient(server: MailAccount['imap'], credential: MailCredential, options: { verifyOnly?: boolean } = {}): Promise<ImapFlow> {
   let proxy: string | undefined
   try {
     proxy = await resolveMailProxy(server)
   }
   catch {
-    // The proxy does not affect the email connection
+    // A failed proxy lookup must not make direct IMAP unavailable.
   }
   const client = new ImapFlow({
     host: server.host,
@@ -62,14 +61,21 @@ export async function verifyImap(server: MailAccount['imap'], credential: MailCr
       pass: credential.password,
       accessToken: credential.accessToken,
     },
-    verifyOnly: true,
+    verifyOnly: options.verifyOnly,
     disableAutoIdle: true,
     logger: false,
     connectionTimeout: 20_000,
     greetingTimeout: 15_000,
-    socketTimeout: 20_000,
+    socketTimeout: options.verifyOnly ? 20_000 : 60_000,
+    maxLiteralSize: options.verifyOnly ? undefined : 30 * 1024 * 1024,
+    maxResponseSize: options.verifyOnly ? undefined : 32 * 1024 * 1024,
   })
   preferXOAuth2(client)
+  return client
+}
+
+export async function verifyImap(server: MailAccount['imap'], credential: MailCredential): Promise<void> {
+  const client = await createImapClient(server, credential, { verifyOnly: true })
 
   try {
     await client.connect()

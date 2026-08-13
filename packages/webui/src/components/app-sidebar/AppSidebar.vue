@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { MailAccountSummary } from '@fumika/state'
+import type { MailFolder } from '@/mail'
 import { DEFAULT_STATE } from '@fumika/state'
 import {
   Sidebar,
@@ -34,6 +35,19 @@ const link = useInject('link')
 const { state } = useSidebar()
 const appSettings = computed(() => ctx.client.setting.readState('app', DEFAULT_STATE.app))
 const accounts = ref<MailAccountSummary[]>([])
+const mailStore = useInject('mailStore')
+const mailboxCounts = computed<Record<MailFolder, number>>(() => {
+  const counts: Record<MailFolder, number> = mailStore.value?.counts ?? {
+    inbox: 0,
+    starred: 0,
+    snoozed: 0,
+    sent: 0,
+    drafts: 0,
+    archive: 0,
+    trash: 0,
+  }
+  return { ...counts, inbox: mailStore.value?.unreadCounts.inbox ?? 0 }
+})
 
 const mailboxes = sidebarMailboxes
 const shortcuts = computed(() => resolveSidebarShortcuts(appSettings.value.sidebar.shortcuts)
@@ -123,10 +137,10 @@ function addAccount(): void {
                   <component :is="item.icon" />
                   <span>{{ item.label }}</span>
                   <span
-                    v-if="item.count"
+                    v-if="mailboxCounts[item.folder]"
                     class="ml-auto text-[11px] tabular-nums text-muted-foreground group-data-[collapsible=icon]:hidden"
                   >
-                    {{ item.count }}
+                    {{ mailboxCounts[item.folder] }}
                   </span>
                 </RouterLink>
               </SidebarMenuButton>

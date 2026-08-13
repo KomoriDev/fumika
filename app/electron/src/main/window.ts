@@ -15,8 +15,6 @@ export interface Config {
   height?: number
 }
 
-const PROJECT_URL = 'https://github.com/KomoriDev/fumika'
-
 declare module 'cordis' {
   interface Context {
     window: WindowService
@@ -91,8 +89,9 @@ export default class WindowService extends Service<Config> {
         this.window = null
     })
     window.webContents.setWindowOpenHandler(({ url }) => {
-      if (url === PROJECT_URL || url === `${PROJECT_URL}/`)
-        void shell.openExternal(PROJECT_URL)
+      const externalUrl = toSafeExternalUrl(url)
+      if (externalUrl)
+        void shell.openExternal(externalUrl)
       return { action: 'deny' }
     })
     if (isDevelopment) {
@@ -110,4 +109,13 @@ export default class WindowService extends Service<Config> {
     else
       await window.loadFile(this.ctx.env.rendererFile)
   }
+}
+function toSafeExternalUrl(value: string): string | undefined {
+  try {
+    const url = new URL(value)
+    if (url.protocol === 'http:' || url.protocol === 'https:' || url.protocol === 'mailto:' || url.protocol === 'tel:')
+      return url.toString()
+  }
+  catch {}
+  return undefined
 }

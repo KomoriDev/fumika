@@ -1,3 +1,5 @@
+import type { MailFolder as SharedMailFolder } from '@fumika/state'
+
 export const mailFolders = [
   'inbox',
   'starred',
@@ -6,11 +8,9 @@ export const mailFolders = [
   'drafts',
   'archive',
   'trash',
-] as const
+] as const satisfies readonly SharedMailFolder[]
 
 export type MailFolder = typeof mailFolders[number]
-export type StoredMailFolder = Exclude<MailFolder, 'starred' | 'snoozed'>
-export type MailLabel = 'work' | 'personal' | 'receipts'
 
 export const mailFolderPattern = mailFolders.join('|')
 
@@ -25,274 +25,58 @@ export const mailFolderLabels: Record<MailFolder, string> = {
 }
 
 export const mailFolderDescriptions: Record<MailFolder, string> = {
-  inbox: 'Messages that need your attention.',
-  starred: 'Important conversations you saved.',
+  inbox: 'Messages from every connected mailbox.',
+  starred: 'Important messages saved across your accounts.',
   snoozed: 'Messages scheduled to return later.',
-  sent: 'Messages sent from this account.',
-  drafts: 'Unfinished messages waiting for you.',
-  archive: 'Messages kept outside your inbox.',
-  trash: 'Deleted messages are kept temporarily.',
+  sent: 'Messages sent from every connected mailbox.',
+  drafts: 'Unfinished messages waiting in connected accounts.',
+  archive: 'Archived messages from every connected mailbox.',
+  trash: 'Deleted messages from every connected mailbox.',
 }
-
-export interface DemoMail {
-  id: number
-  folder: StoredMailFolder
-  sender: string
-  initials: string
-  subject: string
-  preview: string
-  time: string
-  unread: boolean
-  starred: boolean
-  snoozed: boolean
-  attachment: boolean
-  labels: MailLabel[]
-  avatarClass: string
-}
-
-export const demoMails: DemoMail[] = [
-  {
-    id: 1,
-    folder: 'inbox',
-    sender: 'Maya Chen',
-    initials: 'MC',
-    subject: 'Homepage review notes',
-    preview: 'I left a few comments in Figma. The new navigation direction looks much clearer.',
-    time: '9:42 AM',
-    unread: true,
-    starred: true,
-    snoozed: false,
-    attachment: true,
-    labels: ['work'],
-    avatarClass: 'bg-violet-100 text-violet-700',
-  },
-  {
-    id: 2,
-    folder: 'inbox',
-    sender: 'GitHub',
-    initials: 'GH',
-    subject: 'Security alert resolved',
-    preview: 'The dependency alert in fumika-desktop has been closed by an automated update.',
-    time: '8:18 AM',
-    unread: true,
-    starred: false,
-    snoozed: false,
-    attachment: false,
-    labels: ['work'],
-    avatarClass: 'bg-neutral-900 text-white',
-  },
-  {
-    id: 3,
-    folder: 'inbox',
-    sender: 'Notion',
-    initials: 'N',
-    subject: 'Your weekly workspace digest',
-    preview: 'Five pages were updated and three tasks were completed by your team this week.',
-    time: '7:30 AM',
-    unread: true,
-    starred: false,
-    snoozed: false,
-    attachment: false,
-    labels: ['work'],
-    avatarClass: 'bg-stone-100 text-stone-800',
-  },
-  {
-    id: 4,
-    folder: 'inbox',
-    sender: 'Alex Morgan',
-    initials: 'AM',
-    subject: 'Dinner on Friday?',
-    preview: 'There is a new place near the river. I can book a table for seven if that works.',
-    time: 'Yesterday',
-    unread: false,
-    starred: true,
-    snoozed: false,
-    attachment: false,
-    labels: ['personal'],
-    avatarClass: 'bg-rose-100 text-rose-700',
-  },
-  {
-    id: 5,
-    folder: 'inbox',
-    sender: 'Stripe',
-    initials: 'S',
-    subject: 'Receipt for your March subscription',
-    preview: 'Your payment was successful. The PDF receipt is attached for your records.',
-    time: 'Yesterday',
-    unread: false,
-    starred: false,
-    snoozed: false,
-    attachment: true,
-    labels: ['receipts'],
-    avatarClass: 'bg-indigo-100 text-indigo-700',
-  },
-  {
-    id: 6,
-    folder: 'inbox',
-    sender: 'Linear',
-    initials: 'L',
-    subject: 'Sprint 24 is complete',
-    preview: 'Your team closed 31 issues and moved 6 items into the next cycle.',
-    time: 'Mon',
-    unread: false,
-    starred: false,
-    snoozed: false,
-    attachment: false,
-    labels: ['work'],
-    avatarClass: 'bg-sky-100 text-sky-700',
-  },
-  {
-    id: 7,
-    folder: 'inbox',
-    sender: 'The Browser Company',
-    initials: 'BC',
-    subject: 'A calmer way to organize your tabs',
-    preview: 'This release adds automatic archiving and a redesigned command bar.',
-    time: 'Sun',
-    unread: false,
-    starred: false,
-    snoozed: false,
-    attachment: false,
-    labels: [],
-    avatarClass: 'bg-amber-100 text-amber-700',
-  },
-  {
-    id: 8,
-    folder: 'inbox',
-    sender: 'Jordan Lee',
-    initials: 'JL',
-    subject: 'Travel photos',
-    preview: 'The full-resolution photos are in the shared folder. Here are my favorites.',
-    time: 'Sun',
-    unread: false,
-    starred: false,
-    snoozed: true,
-    attachment: true,
-    labels: ['personal'],
-    avatarClass: 'bg-emerald-100 text-emerald-700',
-  },
-  {
-    id: 9,
-    folder: 'inbox',
-    sender: 'Figma',
-    initials: 'F',
-    subject: 'Design review reminder',
-    preview: 'The product review starts tomorrow at 10:00 AM. Open the file before the call.',
-    time: 'Sat',
-    unread: false,
-    starred: true,
-    snoozed: true,
-    attachment: false,
-    labels: ['work'],
-    avatarClass: 'bg-fuchsia-100 text-fuchsia-700',
-  },
-  {
-    id: 10,
-    folder: 'sent',
-    sender: 'To: Product Team',
-    initials: 'PT',
-    subject: 'Updated launch checklist',
-    preview: 'I added owners to the remaining tasks and moved the release review to Thursday.',
-    time: 'Yesterday',
-    unread: false,
-    starred: false,
-    snoozed: false,
-    attachment: true,
-    labels: ['work'],
-    avatarClass: 'bg-blue-100 text-blue-700',
-  },
-  {
-    id: 11,
-    folder: 'sent',
-    sender: 'To: Nina Patel',
-    initials: 'NP',
-    subject: 'Re: Conference schedule',
-    preview: 'Tuesday afternoon works for me. I will send the final slides before noon.',
-    time: 'Mon',
-    unread: false,
-    starred: true,
-    snoozed: false,
-    attachment: false,
-    labels: ['work'],
-    avatarClass: 'bg-cyan-100 text-cyan-700',
-  },
-  {
-    id: 12,
-    folder: 'drafts',
-    sender: 'Draft',
-    initials: 'D',
-    subject: 'Quarterly planning notes',
-    preview: 'Here is a first pass at the priorities and staffing plan for next quarter...',
-    time: '10:12 AM',
-    unread: false,
-    starred: false,
-    snoozed: false,
-    attachment: false,
-    labels: ['work'],
-    avatarClass: 'bg-orange-100 text-orange-700',
-  },
-  {
-    id: 13,
-    folder: 'drafts',
-    sender: 'Draft',
-    initials: 'D',
-    subject: 'Weekend itinerary',
-    preview: 'Train at 8:20, check-in after lunch, then the gallery reservation at four...',
-    time: 'Fri',
-    unread: false,
-    starred: false,
-    snoozed: false,
-    attachment: false,
-    labels: ['personal'],
-    avatarClass: 'bg-orange-100 text-orange-700',
-  },
-  {
-    id: 14,
-    folder: 'archive',
-    sender: 'Adobe',
-    initials: 'A',
-    subject: 'Your annual plan has renewed',
-    preview: 'Thank you for renewing. Your invoice and updated plan details are available.',
-    time: 'Mar 2',
-    unread: false,
-    starred: false,
-    snoozed: false,
-    attachment: true,
-    labels: ['receipts'],
-    avatarClass: 'bg-red-100 text-red-700',
-  },
-  {
-    id: 15,
-    folder: 'archive',
-    sender: 'Mina Park',
-    initials: 'MP',
-    subject: 'Reading list for March',
-    preview: 'A few essays and books that came up during our last conversation.',
-    time: 'Feb 28',
-    unread: false,
-    starred: true,
-    snoozed: false,
-    attachment: false,
-    labels: ['personal'],
-    avatarClass: 'bg-teal-100 text-teal-700',
-  },
-  {
-    id: 16,
-    folder: 'trash',
-    sender: 'Newsletter Daily',
-    initials: 'ND',
-    subject: 'Today in technology',
-    preview: 'A daily collection of product news, funding announcements, and industry links.',
-    time: 'Mar 1',
-    unread: false,
-    starred: false,
-    snoozed: false,
-    attachment: false,
-    labels: [],
-    avatarClass: 'bg-neutral-100 text-neutral-600',
-  },
-]
 
 export function resolveMailFolder(value: unknown): MailFolder {
   return mailFolders.find(folder => folder === value) ?? 'inbox'
+}
+
+export function senderName(sender: { name?: string, address: string }): string {
+  return sender.name?.trim() || sender.address
+}
+
+export function initials(value: string): string {
+  const normalized = value.trim()
+  if (!normalized)
+    return '?'
+  const words = normalized.split(/[\s@._-]+/).filter(Boolean)
+  return (words.length > 1 ? `${words[0]![0]}${words.at(-1)![0]}` : normalized.slice(0, 2)).toUpperCase()
+}
+
+export function avatarClass(seed: string): string {
+  const palette = [
+    'bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300',
+    'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300',
+    'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
+    'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
+    'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300',
+  ]
+  let hash = 0
+  for (const char of seed)
+    hash = (hash * 31 + char.charCodeAt(0)) >>> 0
+  return palette[hash % palette.length]!
+}
+
+export function formatMailTime(timestamp: number): string {
+  const date = new Date(timestamp)
+  const now = new Date()
+  if (date.toDateString() === now.toDateString())
+    return new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(date)
+  if (date.getFullYear() === now.getFullYear())
+    return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(date)
+  return new Intl.DateTimeFormat(undefined, { year: 'numeric', month: 'short', day: 'numeric' }).format(date)
+}
+
+export function formatMailDate(timestamp: number): string {
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date(timestamp))
 }
