@@ -7,7 +7,7 @@ import Database from '@cordisjs/plugin-database'
 import { LinkIpcMain } from '@fumika/plugin-link-ipc/main'
 import BackendStateService from '@fumika/plugin-state'
 import { Context } from 'cordis'
-import { app as electronApp } from 'electron'
+import { dialog, app as electronApp } from 'electron'
 import started from 'electron-squirrel-startup'
 import MailAccountService from './mail'
 import MailNotificationService from './mail/notification'
@@ -91,8 +91,18 @@ else {
   process.on('SIGINT', () => void shutdown())
   process.on('SIGTERM', () => void shutdown())
 
-  void bootstrap().catch((error) => {
+  void bootstrap().catch(async (error) => {
     console.error('[bootstrap] failed', error)
-    electronApp.exit(1)
+    try {
+      if (!electronApp.isReady())
+        await electronApp.whenReady()
+      dialog.showErrorBox(
+        'Fumika failed to start',
+        error instanceof Error ? error.stack ?? error.message : String(error),
+      )
+    }
+    finally {
+      electronApp.exit(1)
+    }
   })
 }
