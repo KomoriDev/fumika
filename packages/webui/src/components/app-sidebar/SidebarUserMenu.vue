@@ -8,11 +8,12 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@fumika/ui/dropdown-menu'
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from '@fumika/ui/sidebar'
 import { ChevronsUpDown, MailPlus, Settings2, UserRound } from '@lucide/vue'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 
 const props = defineProps<{
   accounts: MailAccountSummary[]
@@ -25,6 +26,7 @@ const emit = defineEmits<{
 }>()
 
 const { isMobile } = useSidebar()
+const menuOpen = ref(false)
 const account = computed(() => preferredAccount(props.accounts))
 const displayName = computed(() => account.value?.displayName || 'Fumika Mail')
 const providerSummary = computed(() => {
@@ -60,12 +62,13 @@ function providerLabel(provider: MailAccountSummary['provider']): string {
 <template>
   <SidebarMenu>
     <SidebarMenuItem>
-      <DropdownMenu>
+      <DropdownMenu v-model:open="menuOpen">
         <DropdownMenuTrigger as-child>
           <SidebarMenuButton
             size="lg"
             :tooltip="displayName"
-            class="h-12 cursor-pointer rounded-xl transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground group-data-[collapsible=icon]:p-0!"
+            :is-active="menuOpen"
+            class="sidebar-item h-12 cursor-pointer rounded-lg group-data-[collapsible=icon]:p-0!"
           >
             <Avatar class="size-8 rounded-lg">
               <AvatarImage v-if="account?.avatarUrl" :src="account.avatarUrl" :alt="displayName" referrer-policy="no-referrer" />
@@ -82,26 +85,12 @@ function providerLabel(provider: MailAccountSummary['provider']): string {
         </DropdownMenuTrigger>
 
         <DropdownMenuContent
-          class="min-w-56 rounded-lg"
+          class="w-(--reka-dropdown-menu-trigger-width) min-w-56 rounded-lg"
           :side="isMobile ? 'bottom' : 'right'"
           align="end"
           :side-offset="4"
         >
-          <DropdownMenuLabel class="p-0 font-normal">
-            <div class="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-              <Avatar class="size-8 rounded-lg">
-                <AvatarImage v-if="account?.avatarUrl" :src="account.avatarUrl" :alt="displayName" referrer-policy="no-referrer" />
-                <AvatarFallback class="rounded-lg bg-neutral-900 text-[10px] font-semibold text-white">
-                  {{ initials }}
-                </AvatarFallback>
-              </Avatar>
-              <div class="grid min-w-0 flex-1 text-left text-sm/tight">
-                <span class="truncate font-semibold text-popover-foreground">{{ displayName }}</span>
-                <span class="truncate text-xs text-muted-foreground">{{ providerSummary }}</span>
-              </div>
-            </div>
-          </DropdownMenuLabel>
-          <DropdownMenuSeparator />
+          <DropdownMenuLabel>My Account</DropdownMenuLabel>
           <DropdownMenuGroup>
             <DropdownMenuItem @select="emit('openAccountSettings')">
               <UserRound />
@@ -116,9 +105,9 @@ function providerLabel(provider: MailAccountSummary['provider']): string {
           <DropdownMenuItem @select="emit('addAccount')">
             <MailPlus />
             Add mail account
-            <span v-if="accounts.length" class="ml-auto text-xs tabular-nums text-muted-foreground">
-              {{ accounts.length }} connected
-            </span>
+            <DropdownMenuShortcut v-if="accounts.length">
+              {{ accounts.length }}
+            </DropdownMenuShortcut>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

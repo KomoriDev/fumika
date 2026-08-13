@@ -111,7 +111,7 @@ function openAccountSetup(): void {
               type="search"
               aria-label="Search mail"
               placeholder="Search mail"
-              class="h-6.5 w-full min-w-0 rounded-lg border border-border/70 bg-muted/45 px-2.5 pl-8 text-[13px] outline-none transition-colors placeholder:text-muted-foreground hover:bg-muted/70 focus-visible:border-ring focus-visible:bg-background focus-visible:ring-2 focus-visible:ring-ring/30"
+              class="h-6.5 w-full min-w-0 rounded-lg border border-black/10 bg-background px-2.5 pl-8 text-[13px] outline-none transition-colors placeholder:text-muted-foreground hover:border-black/16 hover:bg-card focus-visible:border-ring focus-visible:bg-card focus-visible:ring-2 focus-visible:ring-ring/30 dark:border-white/12 dark:bg-white/8 dark:hover:border-white/18 dark:hover:bg-white/12 dark:focus-visible:border-ring dark:focus-visible:bg-white/12"
             >
           </div>
 
@@ -142,7 +142,7 @@ function openAccountSetup(): void {
       <div class="min-h-0 flex-1">
         <section
           role="main"
-          class="router-scrollbar h-full min-w-0 overflow-y-auto rounded-xl bg-background shadow-sm ring-1 ring-border/60"
+          class="router-scrollbar h-full min-w-0 overflow-y-auto rounded-xl bg-background ring-1 ring-border/60"
         >
           <RouterView v-slot="{ Component }">
             <Transition name="page" mode="out-in">

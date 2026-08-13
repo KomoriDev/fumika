@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Component } from 'vue'
 import { Button } from '@fumika/ui/button'
-import { ExternalLink, GitFork, Info, Settings2, UserRound, Zap } from '@lucide/vue'
+import { ExternalLink, Info, Settings2, UserRound, Zap } from '@lucide/vue'
 import { computed } from 'vue'
 import { useContext, useInject } from '@/context'
 import AccountSettingsPanel from './AccountSettingsPanel.vue'
@@ -37,7 +37,7 @@ const sections: SettingsNavItem[] = [
   {
     id: 'about',
     label: 'About',
-    description: 'Fumika Mail and project information.',
+    description: 'Version, license, and source.',
     icon: Info,
   },
 ]
@@ -58,10 +58,9 @@ const entries = computed(() => ctx.client.setting.sorted())
           :key="item.id"
           type="button"
           variant="ghost"
-          class="h-9 w-full justify-start gap-2.5 px-3 font-normal"
-          :class="activeSection === item.id
-            ? 'bg-background text-foreground shadow-sm hover:bg-background'
-            : 'text-muted-foreground'"
+          class="sidebar-item h-9 w-full justify-start gap-2.5 px-3 font-normal shadow-none"
+          :class="activeSection === item.id ? 'text-foreground' : 'text-muted-foreground'"
+          :data-active="activeSection === item.id || undefined"
           :aria-current="activeSection === item.id ? 'page' : undefined"
           @click="activeSection = item.id"
         >
@@ -89,46 +88,37 @@ const entries = computed(() => ctx.client.setting.sorted())
         <AccountSettingsPanel @add-account="emit('addAccount')" />
       </div>
 
-      <div v-else class="space-y-6 p-6">
-        <section class="flex items-center gap-4 rounded-2xl border border-border bg-muted/20 p-5">
-          <span class="grid size-11 shrink-0 place-items-center rounded-2xl bg-neutral-950 text-white">
-            <Zap class="size-5" />
-          </span>
-          <div class="min-w-0 flex-1 space-y-1">
-            <h3 class="text-sm font-semibold text-foreground">
-              Fumika Mail
-            </h3>
-            <p class="text-xs/5 text-muted-foreground">
-              A focused desktop workspace for reading and organizing mail.
-            </p>
-          </div>
-          <dl class="flex shrink-0 items-baseline gap-2 text-xs">
-            <dt class="text-muted-foreground">
-              Version
-            </dt>
-            <dd class="font-mono font-medium tabular-nums text-foreground">
-              {{ version ?? 'Unknown' }}
-            </dd>
-          </dl>
-        </section>
-
-        <section class="space-y-2">
-          <p class="text-xs font-medium tracking-[0.18em] text-muted-foreground uppercase">
-            Project
+      <div v-else class="space-y-4 p-6">
+        <div class="space-y-1">
+          <h3 class="flex items-center gap-2 text-sm font-semibold text-foreground">
+            <Zap class="size-3.5" :stroke-width="1.7" />
+            Fumika Mail
+          </h3>
+          <p class="text-xs/5 text-muted-foreground">
+            A focused desktop workspace for reading and organizing mail
           </p>
-          <Button as-child variant="outline" class="h-auto w-full justify-start gap-3 rounded-2xl px-4 py-3 text-left shadow-none">
-            <a href="https://github.com/KomoriDev/fumika" target="_blank" rel="noreferrer">
-              <span class="grid size-9 shrink-0 place-items-center rounded-xl bg-neutral-950 text-white">
-                <GitFork class="size-4" />
-              </span>
-              <span class="min-w-0 flex-1">
-                <span class="block text-sm font-medium">GitHub</span>
-                <span class="block truncate text-xs font-normal text-muted-foreground">github.com/KomoriDev/fumika</span>
-              </span>
-              <ExternalLink class="size-4 text-muted-foreground" />
-            </a>
-          </Button>
-        </section>
+        </div>
+
+        <div class="divide-y divide-border/70 overflow-hidden rounded-xl border border-border/70">
+          <div class="flex items-center justify-between gap-3 px-4 py-3">
+            <span class="text-sm text-foreground">Version</span>
+            <span class="font-mono text-xs tabular-nums text-muted-foreground">{{ version ?? 'Unknown' }}</span>
+          </div>
+          <div class="flex items-center justify-between gap-3 px-4 py-3">
+            <span class="text-sm text-foreground">License</span>
+            <span class="font-mono text-xs text-muted-foreground">AGPL-3.0</span>
+          </div>
+          <a
+            href="https://github.com/KomoriDev/fumika"
+            target="_blank"
+            rel="noreferrer"
+            class="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-foreground/7"
+          >
+            <span class="text-sm text-foreground">GitHub</span>
+            <span class="min-w-0 flex-1 truncate text-right text-xs text-muted-foreground">github.com/KomoriDev/fumika</span>
+            <ExternalLink class="size-4 shrink-0 text-muted-foreground" />
+          </a>
+        </div>
       </div>
     </section>
   </div>

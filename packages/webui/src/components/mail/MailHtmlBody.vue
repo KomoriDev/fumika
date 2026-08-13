@@ -113,8 +113,9 @@ function createMailDocument(html: string, dark: boolean): string {
     .join('\n')
   const surface = dark
     ? `html, body { margin: 0; padding: 0; min-height: 1px; background: transparent !important; color: #f4f4f5; }
-a { color: #c4b5fd; }`
-    : `html, body { margin: 0; padding: 0; min-height: 1px; background: #fff; color: #18181b; }`
+a { color: #e4e4e7; }`
+    : `html, body { margin: 0; padding: 0; min-height: 1px; background: transparent !important; color: #18181b; }
+a { color: #18181b; }`
 
   return `<!doctype html>
 <html>
@@ -128,7 +129,7 @@ ${surface}
 body { overflow-wrap: anywhere; font-family: "Segoe UI Variable", "Segoe UI", "Microsoft YaHei UI", Arial, sans-serif; font-size: 15px; line-height: 1.65; }
 img { display: block; height: auto; max-width: 100%; }
 table { max-width: 100%; }
-a { color: #6d28d9; cursor: pointer; }
+a { cursor: pointer; text-decoration: underline; }
 p:first-child { margin-top: 0; }
 p:last-child { margin-bottom: 0; }
 </style>

@@ -105,7 +105,7 @@ function addAccount(): void {
             size="lg"
             :is-active="activeFolder === item.folder && !activeLabel"
             :tooltip="item.label"
-            class="sidebar-item aspect-square h-auto w-full justify-center rounded-xl border-transparent bg-black/4.5 p-0 shadow-none group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:rounded-lg"
+            class="sidebar-item aspect-square h-auto w-full justify-center rounded-lg border-transparent bg-black/4.5 p-0 shadow-none group-data-[collapsible=icon]:size-8!"
           >
             <RouterLink :to="`/${item.folder}`" :aria-label="item.label">
               <component :is="item.icon" />
@@ -127,7 +127,7 @@ function addAccount(): void {
                 size="lg"
                 :is-active="activeFolder === item.folder && !activeLabel"
                 :tooltip="item.label"
-                class="sidebar-item h-9 rounded-xl px-2.5 group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:[&>span]:hidden"
+                class="sidebar-item h-9 rounded-lg px-2.5 group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:[&>span]:hidden"
               >
                 <RouterLink
                   :to="`/${item.folder}`"
@@ -158,7 +158,7 @@ function addAccount(): void {
                 as-child
                 :is-active="isLabelActive(item.value)"
                 :tooltip="item.label"
-                class="sidebar-item h-8 rounded-xl px-2.5 group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:[&_.sidebar-item-label]:hidden"
+                class="sidebar-item h-8 rounded-lg px-2.5 group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:[&_.sidebar-item-label]:hidden"
               >
                 <RouterLink
                   :to="{ path: '/inbox', query: { label: item.value } }"

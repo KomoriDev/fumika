@@ -205,11 +205,9 @@ function messageOf(reason: unknown): string {
 
       <section
         v-if="message.html"
-        class="min-h-0 flex-1 border-t bg-white dark:bg-background"
+        class="mx-auto w-full max-w-5xl px-5 pb-8 sm:px-8"
       >
-        <div class="mx-auto w-full max-w-5xl px-5 py-6 sm:px-8 sm:py-7">
-          <MailHtmlBody :html="message.html" />
-        </div>
+        <MailHtmlBody :html="message.html" />
       </section>
       <section v-else class="mx-auto w-full max-w-5xl px-5 pb-8 sm:px-8">
         <div class="whitespace-pre-wrap wrap-break-word text-[15px]/7 text-foreground">
