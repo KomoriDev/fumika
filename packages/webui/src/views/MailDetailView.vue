@@ -7,11 +7,12 @@ import { computed, ref } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import MailHtmlBody from '@/components/mail/MailHtmlBody.vue'
 import SenderAvatar from '@/components/mail/SenderAvatar.vue'
-import { useInject } from '@/context'
+import { useContext, useInject } from '@/context'
 import { formatMailDate, senderName } from '@/mail'
 
 const route = useRoute()
 const router = useRouter()
+const ctx = useContext()
 const link = useInject('link')
 const mailStore = useInject('mailStore')
 const messageId = computed(() => typeof route.params.id === 'string' ? route.params.id : '')
@@ -26,6 +27,10 @@ const recipientText = computed(() => formatAddresses(message.value?.to ?? []))
 const ccText = computed(() => formatAddresses(message.value?.cc ?? []))
 
 void loadMessage()
+ctx.effect(() => ctx.on('view/refresh', () => {
+  void loadMessage()
+  return true
+}))
 onBeforeRouteLeave(() => {
   leaving.value = true
 })
@@ -121,9 +126,6 @@ function messageOf(reason: unknown): string {
       <div class="flex shrink-0 items-center gap-1">
         <Button variant="ghost" size="icon-sm" :disabled="busy || !message" :aria-label="message?.starred ? 'Remove star' : 'Star message'" @click="toggleStar">
           <Star :class="message?.starred ? 'text-amber-500' : ''" :fill="message?.starred ? 'currentColor' : 'none'" />
-        </Button>
-        <Button variant="ghost" size="icon-sm" :disabled="loading" aria-label="Reload message" @click="loadMessage">
-          <RefreshCw :class="loading ? 'animate-spin' : ''" />
         </Button>
       </div>
     </header>

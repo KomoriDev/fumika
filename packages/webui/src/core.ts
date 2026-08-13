@@ -8,6 +8,12 @@ import MailAccountSetupView from './views/MailAccountSetupView.vue'
 import MailDetailView from './views/MailDetailView.vue'
 import MailListView from './views/MailListView.vue'
 
+declare module 'cordis' {
+  interface Events {
+    'view/refresh': () => boolean
+  }
+}
+
 const GeneralSettings = Schema.object({
   locale: Schema.union([
     Schema.const('en-US').extra('description', { 'en-US': 'English', 'zh-CN': 'English' }),
@@ -111,10 +117,9 @@ export function installCore(ctx: Context): void {
 
   ctx.client.action.register('navigation.back', () => ctx.client.router.router.back())
   ctx.client.action.register('navigation.forward', () => ctx.client.router.router.forward())
-  ctx.client.action.register('navigation.reload', {
-    shortcut: 'mod+r',
-    allowInInput: true,
-    run: () => window.location.reload(),
+  ctx.client.action.register('navigation.reload', () => {
+    if (!ctx.bail('view/refresh'))
+      window.location.reload()
   })
 
   ctx.client.setting.control({

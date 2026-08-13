@@ -6,7 +6,7 @@ import { CheckCheck, Inbox, MailSearch, Paperclip, RefreshCw, Star, TriangleAler
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import SenderAvatar from '@/components/mail/SenderAvatar.vue'
-import { useInject } from '@/context'
+import { useContext, useInject } from '@/context'
 import {
   formatMailTime,
   mailFolderDescriptions,
@@ -17,6 +17,7 @@ import {
 
 const route = useRoute()
 const router = useRouter()
+const ctx = useContext()
 const link = useInject('link')
 const appState = useInject('appState')
 const mailStore = useInject('mailStore')
@@ -26,7 +27,7 @@ const preferences = computed(() => appState.value?.data.app.preferences ?? {
   desktopNotifications: true,
 })
 const loading = ref(false)
-const refreshing = ref(false)
+
 const markingRead = ref(false)
 const error = ref('')
 
@@ -49,12 +50,15 @@ onMounted(() => {
   mailStore.value?.refreshOnce(query.value)
 })
 
+ctx.effect(() => ctx.on('view/refresh', () => {
+  void loadMessages(true)
+  return true
+}))
+
 watch([activeFolder, searchTerm], () => void loadMessages(false))
 
 async function loadMessages(refresh: boolean): Promise<void> {
-  if (refresh)
-    refreshing.value = true
-  else if (!mailStore.value?.has(query.value))
+  if (!refresh && !mailStore.value?.has(query.value))
     loading.value = true
   error.value = ''
   try {
@@ -67,7 +71,6 @@ async function loadMessages(refresh: boolean): Promise<void> {
   }
   finally {
     loading.value = false
-    refreshing.value = false
   }
 }
 
@@ -136,10 +139,6 @@ function messageOf(reason: unknown): string {
         </div>
 
         <div class="flex shrink-0 items-center gap-1">
-          <Button variant="ghost" size="sm" class="gap-2" :disabled="refreshing" @click="loadMessages(true)">
-            <RefreshCw :class="refreshing ? 'animate-spin' : ''" />
-            Refresh
-          </Button>
           <Button variant="ghost" size="sm" class="gap-2" :disabled="unreadCount === 0 || markingRead" @click="markAllRead">
             <CheckCheck />
             Mark all read
