@@ -8,7 +8,6 @@ import { LinkIpcMain } from '@fumika/plugin-link-ipc/main'
 import BackendStateService from '@fumika/plugin-state'
 import { Context } from 'cordis'
 import { dialog, app as electronApp } from 'electron'
-import started from 'electron-squirrel-startup'
 import MailAccountService from './mail'
 import MailNotificationService from './mail/notification'
 import FumikaSQLiteDriver from './sqlite'
@@ -73,36 +72,31 @@ async function bootstrap() {
   await Promise.all(fibers.map(fiber => fiber.await()))
 }
 
-if (started) {
-  electronApp.exit(0)
-}
-else {
-  electronApp.on('window-all-closed', () => {
-    // Stay alive in the tray so IMAP watchers keep receiving mail
-  })
+electronApp.on('window-all-closed', () => {
+  // Stay alive in the tray so IMAP watchers keep receiving mail
+})
 
-  electronApp.on('before-quit', (event) => {
-    if (shuttingDown)
-      return
-    event.preventDefault()
-    void shutdown()
-  })
+electronApp.on('before-quit', (event) => {
+  if (shuttingDown)
+    return
+  event.preventDefault()
+  void shutdown()
+})
 
-  process.on('SIGINT', () => void shutdown())
-  process.on('SIGTERM', () => void shutdown())
+process.on('SIGINT', () => void shutdown())
+process.on('SIGTERM', () => void shutdown())
 
-  void bootstrap().catch(async (error) => {
-    console.error('[bootstrap] failed', error)
-    try {
-      if (!electronApp.isReady())
-        await electronApp.whenReady()
-      dialog.showErrorBox(
-        'Fumika failed to start',
-        error instanceof Error ? error.stack ?? error.message : String(error),
-      )
-    }
-    finally {
-      electronApp.exit(1)
-    }
-  })
-}
+void bootstrap().catch(async (error) => {
+  console.error('[bootstrap] failed', error)
+  try {
+    if (!electronApp.isReady())
+      await electronApp.whenReady()
+    dialog.showErrorBox(
+      'Fumika failed to start',
+      error instanceof Error ? error.stack ?? error.message : String(error),
+    )
+  }
+  finally {
+    electronApp.exit(1)
+  }
+})
