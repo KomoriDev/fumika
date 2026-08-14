@@ -13,15 +13,17 @@ import type {
   MailMessageSummary,
 } from '@fumika/state'
 import type { Context } from 'cordis'
+import type { ImapFlow } from 'imapflow'
 import { Buffer } from 'node:buffer'
 import { randomUUID } from 'node:crypto'
 import process from 'node:process'
 import { RuntimeError } from '@cordisjs/plugin-database'
 import { Service } from 'cordis'
 import { safeStorage } from 'electron'
+import { selectSessionNotifications } from './notification-content'
 import { authorizeWithBrowser, createOAuthProviders, fetchUserInfo, providerName, refreshOAuthAuthorization } from './oauth'
 import { extractSenderAvatarUrl, markRemoteMessagesRead, matchesFolder, syncAccountMessages, syncInboxMessages, updateRemoteFlags } from './receiver'
-import { verifyImap, verifySmtp } from './transport'
+import { isQqMailAccount, verifyImap, verifySmtp } from './transport'
 import { MailAccountWatcher } from './watcher'
 
 interface MailCredentialRow {
@@ -64,10 +66,12 @@ declare module 'cordis' {
 }
 
 export class MailAccountService extends Service {
-  static inject = ['model', 'database', 'link']
+  static inject = ['app', 'model', 'database', 'link']
   private readonly oauthProviders = createOAuthProviders()
   private readonly watchers = new Map<string, MailAccountWatcher>()
   private readonly liveSyncs = new Map<string, Promise<void>>()
+  private readonly liveSyncQueued = new Set<string>()
+  private readonly seenInboxUid = new Map<string, number>()
 
   constructor(ctx: Context) {
     super(ctx, 'mailAccount')
@@ -137,8 +141,10 @@ export class MailAccountService extends Service {
   }
 
   async* [Service.init]() {
+    await this.ctx.app.whenReady()
     await this.ctx.database.prepared()
     await this.backfillOAuthAvatars()
+    await this.auditStoredCredentials()
     await this.startWatchers()
     yield async () => this.stopWatchers()
     yield this.ctx.link.action('mail-account.list', async () => ({
@@ -223,7 +229,7 @@ export class MailAccountService extends Service {
       if (!account)
         return
       const credential = await this.readCredential(account)
-      await updateRemoteFlags(account, credential, message, changes)
+      await this.withAccountClient(account, client => updateRemoteFlags(account, credential, message, changes, client))
     }
     catch (error) {
       this.ctx.logger('mail').warn('failed to synchronize message flags: %s', error instanceof Error ? error.message : String(error))
@@ -279,7 +285,7 @@ export class MailAccountService extends Service {
         if (!account)
           return
         const credential = await this.readCredential(account)
-        await markRemoteMessagesRead(account, credential, accountMessages)
+        await this.withAccountClient(account, client => markRemoteMessagesRead(account, credential, accountMessages, client))
       }
       catch (error) {
         this.ctx.logger('mail').warn('failed to synchronize read flags: %s', error instanceof Error ? error.message : String(error))
@@ -294,7 +300,7 @@ export class MailAccountService extends Service {
     const results = await Promise.all(accounts.map(async (account) => {
       try {
         const credential = await this.readCredential(account)
-        const messages = await syncAccountMessages(account, credential, limit)
+        const messages = await this.withAccountClient(account, client => syncAccountMessages(account, credential, limit, client))
         await this.persistMessages(messages)
         return undefined
       }
@@ -318,7 +324,7 @@ export class MailAccountService extends Service {
     if (this.watchers.has(account.id))
       return
     const watcher = new MailAccountWatcher(account, () => this.readCredential(account), {
-      onMessage: () => this.syncLiveInbox(account),
+      onMessage: client => this.syncLiveInbox(account, client),
       onError: error => this.ctx.logger('mail').warn('real-time mailbox connection failed for %s: %s', account.mailboxAddress, error instanceof Error ? error.message : String(error)),
     })
     this.watchers.set(account.id, watcher)
@@ -339,40 +345,70 @@ export class MailAccountService extends Service {
     await Promise.all(watchers.map(watcher => watcher.stop()))
   }
 
-  private async syncLiveInbox(account: MailAccount): Promise<void> {
+  private async withAccountClient<T>(account: MailAccount, fn: (client?: ImapFlow) => Promise<T>): Promise<T> {
+    const watcher = this.watchers.get(account.id)
+    if (!watcher)
+      return fn()
+    try {
+      return await watcher.useClient(client => fn(client))
+    }
+    catch (error) {
+      if (error instanceof Error && error.message === 'Mailbox connection is not ready.')
+        return fn()
+      throw error
+    }
+  }
+
+  private async syncLiveInbox(account: MailAccount, client: ImapFlow): Promise<void> {
     const existing = this.liveSyncs.get(account.id)
-    if (existing)
+    if (existing) {
+      this.liveSyncQueued.add(account.id)
       return existing
-    const sync = this.fetchLiveInbox(account).finally(() => this.liveSyncs.delete(account.id))
+    }
+    const sync = this.drainLiveInbox(account, client).finally(() => this.liveSyncs.delete(account.id))
     this.liveSyncs.set(account.id, sync)
     return sync
   }
 
-  private async fetchLiveInbox(account: MailAccount): Promise<void> {
+  private async drainLiveInbox(account: MailAccount, client: ImapFlow): Promise<void> {
+    do {
+      this.liveSyncQueued.delete(account.id)
+      await this.fetchLiveInbox(account, client)
+    } while (this.liveSyncQueued.has(account.id) && client.usable)
+  }
+
+  private async fetchLiveInbox(account: MailAccount, client: ImapFlow): Promise<void> {
     const latest = await this.ctx.database.get('mail_message', {
-      accountId: account.id,
+      mailboxAddress: account.mailboxAddress,
       folder: 'inbox',
     }, { sort: { uid: 'desc' }, limit: 1 })
+    const seenUid = this.seenInboxUid.get(account.mailboxAddress)
+    const afterUid = Math.max(latest[0]?.uid ?? 0, seenUid ?? 0)
     const remoteMailbox = latest[0]?.remoteMailbox ?? 'INBOX'
-    const credential = await this.readCredential(account)
-    const messages = await syncInboxMessages(account, credential, remoteMailbox, latest[0]?.uid ?? 0)
+    const messages = await syncInboxMessages(client, account, remoteMailbox, afterUid)
     const newMessages = await this.persistMessages(messages)
-    if (!newMessages.length)
+    const nextSeen = Math.max(afterUid, ...messages.map(message => message.uid), ...newMessages.map(message => message.uid))
+    const incoming = selectSessionNotifications(newMessages, seenUid)
+    this.seenInboxUid.set(account.mailboxAddress, nextSeen)
+    if (!newMessages.length && incoming.length === 0)
       return
-    const refreshedAt = Date.now()
-    this.ctx.emit('link/send', 'mail-message.changed', { accountIds: [account.id], refreshedAt })
-    this.ctx.emit('mail/received', newMessages)
+    this.ctx.emit('link/send', 'mail-message.changed', { accountIds: [account.id], refreshedAt: Date.now() })
+    if (incoming.length)
+      this.ctx.emit('mail/received', incoming)
   }
 
   private async persistMessages(messages: Array<Omit<MailMessageRow, 'syncedAt'>>): Promise<MailMessageRow[]> {
     if (!messages.length)
       return []
-    const existing = await this.ctx.database.get('mail_message', { id: { $in: messages.map(message => message.id) } })
-    const existingIds = new Set(existing.map(message => message.id))
+    const existing = await this.ctx.database.get('mail_message', {
+      mailboxAddress: { $in: [...new Set(messages.map(message => message.mailboxAddress))] },
+      uid: { $in: [...new Set(messages.map(message => message.uid))] },
+    })
+    const existingKeys = new Set(existing.map(message => `${message.mailboxAddress}\0${message.remoteMailbox}\0${message.uid}`))
     const syncedAt = Date.now()
     const rows = messages.map(message => ({ ...message, syncedAt }))
     await this.ctx.database.upsert('mail_message', rows)
-    return rows.filter(message => !existingIds.has(message.id))
+    return rows.filter(message => !existingKeys.has(`${message.mailboxAddress}\0${message.remoteMailbox}\0${message.uid}`))
   }
 
   private async bindOAuth(payload: MailAccountOAuthPayload): Promise<MailAccountSummary> {
@@ -537,6 +573,38 @@ export class MailAccountService extends Service {
     }
   }
 
+  private async auditStoredCredentials(): Promise<void> {
+    const accounts = (await this.ctx.database.get('mail_account', {}))
+      .filter(account => account.status === 'active' || account.status === 'reauth-required')
+    let changed = false
+    for (const account of accounts) {
+      const row = (await this.ctx.database.get('mail_credential', { accountId: account.id }))[0]
+      let valid = false
+      try {
+        if (row) {
+          const { result } = await safeStorage.decryptStringAsync(Buffer.from(row.encryptedPayload))
+          const payload = JSON.parse(result) as Record<string, unknown>
+          valid = row.kind === 'password'
+            ? typeof payload.password === 'string' && payload.password.length > 0
+            : typeof payload.accessToken === 'string' && payload.accessToken.length > 0
+              && typeof payload.refreshToken === 'string' && payload.refreshToken.length > 0
+        }
+      }
+      catch {
+        valid = false
+      }
+      const status = valid ? 'active' : 'reauth-required'
+      if (account.status === status)
+        continue
+      await this.ctx.database.set('mail_account', { id: account.id }, { status, updatedAt: Date.now() })
+      changed = true
+      if (!valid)
+        this.ctx.logger('mail').warn('%s needs to be reconnected because its stored credentials are unusable', account.mailboxAddress)
+    }
+    if (changed)
+      await this.broadcast()
+  }
+
   private async readCredential(account: MailAccount): Promise<{ password?: string, accessToken?: string }> {
     const row = (await this.ctx.database.get('mail_credential', { accountId: account.id }))[0]
     if (!row)
@@ -546,7 +614,7 @@ export class MailAccountService extends Service {
       const credential = JSON.parse(result) as { password?: unknown }
       const password = typeof credential.password === 'string' ? credential.password : ''
       if (!password)
-        throw new Error(`Password for ${account.mailboxAddress} is unavailable.`)
+        throw new Error(`${account.mailboxAddress} needs to be reconnected. The stored IMAP password is missing—remove the account and add it again with the 16-character authorization code.`)
       return { password }
     }
     let credential = JSON.parse(result) as StoredOAuthCredential
@@ -587,6 +655,7 @@ export class MailAccountService extends Service {
     if (!account)
       return
     await this.stopWatcher(id)
+    this.seenInboxUid.delete(account.mailboxAddress)
 
     await this.ctx.database.withTransaction(async (database) => {
       await database.remove('mail_message', { accountId: id })
@@ -688,12 +757,6 @@ function normalizeCredential(value: unknown): string {
   return credential.replaceAll(/\s/g, '').length === 16 && /^[a-z0-9\s]+$/i.test(credential)
     ? credential.replaceAll(/\s/g, '')
     : credential
-}
-
-function isQqMailAccount(mailboxAddress: string, imap: MailAccount['imap'], smtp: MailAccount['smtp']): boolean {
-  return mailboxAddress.endsWith('@qq.com')
-    || imap.host.toLowerCase() === 'imap.qq.com'
-    || smtp.host.toLowerCase() === 'smtp.qq.com'
 }
 
 function assertQqAuthorizationCode(isQqMail: boolean, password: string): void {

@@ -7,11 +7,10 @@ import type {
   MailMessageSummary,
 } from '@fumika/state'
 import type { SplitterChunk } from '@zone-eu/mailsplit'
-import type { FetchMessageObject, MessageAddressObject, MessageStructureObject } from 'imapflow'
+import type { FetchMessageObject, ImapFlow, MessageAddressObject, MessageStructureObject } from 'imapflow'
 import { Buffer } from 'node:buffer'
 import { StringDecoder } from 'node:string_decoder'
 import { Splitter } from '@zone-eu/mailsplit'
-import { ImapFlow } from 'imapflow'
 import libmime from 'libmime'
 import { createImapClient } from './transport'
 
@@ -26,12 +25,23 @@ export interface SyncedMailMessage extends MailMessageDetail {
   sourceSize: number
 }
 
+const FETCH_QUERY = {
+  uid: true,
+  flags: true,
+  envelope: true,
+  internalDate: true,
+  size: true,
+  bodyStructure: true,
+  source: true,
+} as const
+
 export async function syncAccountMessages(
   account: MailAccount,
   credential: MailCredential,
   limit: number,
+  existing?: ImapFlow,
 ): Promise<SyncedMailMessage[]> {
-  const client = await connectImap(account, credential)
+  const client = existing ?? await connectImap(account, credential)
   const messages: SyncedMailMessage[] = []
   try {
     const mailboxes = await client.list()
@@ -43,15 +53,7 @@ export async function syncAccountMessages(
         if (!exists)
           continue
         const start = Math.max(1, exists - limit + 1)
-        for await (const fetched of client.fetch(`${start}:*`, {
-          uid: true,
-          flags: true,
-          envelope: true,
-          internalDate: true,
-          size: true,
-          bodyStructure: true,
-          source: true,
-        })) {
+        for await (const fetched of client.fetch(`${start}:*`, FETCH_QUERY)) {
           if (!fetched.source)
             continue
           messages.push(await parseMessage(account, folder.folder, folder.path, fetched))
@@ -63,48 +65,36 @@ export async function syncAccountMessages(
     }
   }
   finally {
-    await closeImap(client)
+    if (!existing)
+      await closeImap(client)
   }
   return messages
 }
+
 export async function syncInboxMessages(
+  client: ImapFlow,
   account: MailAccount,
-  credential: MailCredential,
   remoteMailbox: string,
   afterUid: number,
 ): Promise<SyncedMailMessage[]> {
-  const client = await connectImap(account, credential)
-  const messages: SyncedMailMessage[] = []
+  const lock = await client.getMailboxLock(remoteMailbox, { readOnly: true })
   try {
-    const lock = await client.getMailboxLock(remoteMailbox, { readOnly: true })
-    try {
-      const uids = await client.search({ uid: `${Math.max(1, afterUid + 1)}:*` }, { uid: true })
-      if (!uids)
-        return messages
-      const newUids = uids.filter(uid => uid > afterUid)
-      if (!newUids.length)
-        return messages
-      for await (const fetched of client.fetch(newUids, {
-        uid: true,
-        flags: true,
-        envelope: true,
-        internalDate: true,
-        size: true,
-        bodyStructure: true,
-        source: true,
-      }, { uid: true })) {
-        if (fetched.source)
-          messages.push(await parseMessage(account, 'inbox', remoteMailbox, fetched))
-      }
+    const uids = await client.search({ uid: `${Math.max(1, afterUid + 1)}:*` }, { uid: true })
+    if (!uids)
+      return []
+    const newUids = uids.filter(uid => uid > afterUid)
+    if (!newUids.length)
+      return []
+    const messages: SyncedMailMessage[] = []
+    for await (const fetched of client.fetch(newUids, FETCH_QUERY, { uid: true })) {
+      if (fetched.source)
+        messages.push(await parseMessage(account, 'inbox', remoteMailbox, fetched))
     }
-    finally {
-      lock.release()
-    }
+    return messages
   }
   finally {
-    await closeImap(client)
+    lock.release()
   }
-  return messages
 }
 
 export async function updateRemoteFlags(
@@ -112,8 +102,9 @@ export async function updateRemoteFlags(
   credential: MailCredential,
   message: Pick<SyncedMailMessage, 'uid' | 'remoteMailbox'>,
   changes: { unread?: boolean, starred?: boolean },
+  existing?: ImapFlow,
 ): Promise<void> {
-  const client = await connectImap(account, credential)
+  const client = existing ?? await connectImap(account, credential)
   try {
     const lock = await client.getMailboxLock(message.remoteMailbox)
     try {
@@ -131,7 +122,8 @@ export async function updateRemoteFlags(
     }
   }
   finally {
-    await closeImap(client)
+    if (!existing)
+      await closeImap(client)
   }
 }
 
@@ -139,10 +131,11 @@ export async function markRemoteMessagesRead(
   account: MailAccount,
   credential: MailCredential,
   messages: Array<Pick<SyncedMailMessage, 'uid' | 'remoteMailbox'>>,
+  existing?: ImapFlow,
 ): Promise<void> {
   if (!messages.length)
     return
-  const client = await connectImap(account, credential)
+  const client = existing ?? await connectImap(account, credential)
   try {
     const byMailbox = new Map<string, number[]>()
     for (const message of messages) {
@@ -161,7 +154,8 @@ export async function markRemoteMessagesRead(
     }
   }
   finally {
-    await closeImap(client)
+    if (!existing)
+      await closeImap(client)
   }
 }
 

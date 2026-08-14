@@ -19,6 +19,19 @@ const proxySchemes: Record<ProxyDirective, string> = {
   SOCKS5: 'socks5',
 }
 
+export function isQqMailAccount(mailboxAddress: string, imap: MailAccount['imap'], smtp?: MailAccount['smtp']): boolean {
+  const host = imap.host.toLowerCase()
+  const smtpHost = smtp?.host.toLowerCase() ?? ''
+  const address = mailboxAddress.toLowerCase()
+  return address.endsWith('@qq.com')
+    || address.endsWith('@vip.qq.com')
+    || address.endsWith('@foxmail.com')
+    || host === 'imap.qq.com'
+    || host.endsWith('.qq.com')
+    || smtpHost === 'smtp.qq.com'
+    || smtpHost.endsWith('.qq.com')
+}
+
 export async function resolveMailProxy(server: MailAccount['imap'], resolveProxy: MailProxyResolver = url => session.defaultSession.resolveProxy(url)): Promise<string | undefined> {
   const protocol = server.secure ? 'https' : 'http'
   const rules = await resolveProxy(`${protocol}://${server.host}:${server.port}`)
@@ -63,7 +76,7 @@ export async function createImapClient(server: MailAccount['imap'], credential: 
     },
     verifyOnly: options.verifyOnly,
     disableAutoIdle: true,
-    maxIdleTime: options.watch ? 4 * 60_000 : undefined,
+    maxIdleTime: options.watch ? 30_000 : undefined,
     missingIdleCommand: options.watch ? 'NOOP' : undefined,
     logger: false,
     connectionTimeout: 20_000,
