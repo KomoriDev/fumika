@@ -90,15 +90,14 @@ async function toggleStar(mail: MailMessageSummary): Promise<void> {
 }
 
 async function markAllRead(): Promise<void> {
-  const unread = mails.value.filter(mail => mail.unread)
-  if (!unread.length || !link.value || markingRead.value)
+  if (unreadCount.value === 0 || !link.value || markingRead.value)
     return
   markingRead.value = true
   error.value = ''
+  const targetQuery = query.value
   try {
-    const reply = await link.value.action('mail-message.mark-read', { ids: unread.map(mail => mail.id) })
-    for (const message of reply.messages)
-      mailStore.value?.replaceMessage(message)
+    const reply = await link.value.action('mail-message.mark-read', targetQuery)
+    mailStore.value?.markQueryRead(targetQuery, reply.unreadCounts)
   }
   catch (reason) {
     error.value = messageOf(reason)

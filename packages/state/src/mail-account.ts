@@ -66,11 +66,14 @@ export interface MailMessageSetFlagsPayload {
 }
 
 export interface MailMessagesMarkReadPayload {
-  ids: string[]
+  folder: MailFolder
+  query?: string
+  limit?: number
 }
 
 export interface MailMessagesMarkReadReply {
-  messages: MailMessageSummary[]
+  updated: number
+  unreadCounts: Record<MailFolder, number>
 }
 
 export interface MailMessagesChangedEvent {

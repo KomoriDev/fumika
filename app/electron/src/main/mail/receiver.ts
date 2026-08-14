@@ -2,7 +2,6 @@ import type {
   MailAccount,
   MailAddress,
   MailAttachment,
-  MailFolder,
   MailMessageDetail,
   MailMessageSummary,
 } from '@fumika/state'
@@ -553,12 +552,4 @@ function sanitizeAvatarUrl(value: string): string | undefined {
   catch {
     return undefined
   }
-}
-
-export function matchesFolder(message: MailMessageSummary, folder: MailFolder): boolean {
-  if (folder === 'starred')
-    return message.starred && message.folder !== 'trash'
-  if (folder === 'snoozed')
-    return false
-  return message.folder === folder
 }

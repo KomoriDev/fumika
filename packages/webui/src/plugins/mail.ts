@@ -150,6 +150,23 @@ export default class MailModule extends Service {
     }
   }
 
+  markQueryRead(query: MailQuery, unreadCounts: Record<MailFolder, number>): void {
+    const markedIds = new Set<string>()
+    for (const message of this.messages.get(this.key(query)) ?? []) {
+      if (message.unread)
+        markedIds.add(message.id)
+    }
+    if (markedIds.size) {
+      for (const messages of this.messages.values()) {
+        for (const message of messages) {
+          if (markedIds.has(message.id))
+            message.unread = false
+        }
+      }
+    }
+    Object.assign(this.unreadCounts, unreadCounts)
+  }
+
   private async reloadLoadedQueries(): Promise<void> {
     const queries = [...this.loaded].map(parseKey)
     try {

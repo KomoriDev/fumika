@@ -20,9 +20,10 @@ import process from 'node:process'
 import { RuntimeError } from '@cordisjs/plugin-database'
 import { Service } from 'cordis'
 import { safeStorage } from 'electron'
+import { matchesMessageQuery, selectUnreadMessages } from './message-query'
 import { selectSessionNotifications } from './notification-content'
 import { authorizeWithBrowser, createOAuthProviders, fetchUserInfo, providerName, refreshOAuthAuthorization } from './oauth'
-import { extractSenderAvatarUrl, markRemoteMessagesRead, matchesFolder, syncAccountMessages, syncInboxMessages, updateRemoteFlags } from './receiver'
+import { extractSenderAvatarUrl, markRemoteMessagesRead, syncAccountMessages, syncInboxMessages, updateRemoteFlags } from './receiver'
 import { isQqMailAccount, verifyImap, verifySmtp } from './transport'
 import { MailAccountWatcher } from './watcher'
 
@@ -185,8 +186,7 @@ export class MailAccountService extends Service {
       limit: Math.min(1000, limit * Math.max(1, (await this.list()).length) * 5),
     })
     const messages = rows
-      .filter(message => matchesFolder(message, folder))
-      .filter(message => !query || messageSearchText(message).includes(query))
+      .filter(message => matchesMessageQuery(message, folder, query))
       .slice(0, limit)
       .map(toMessageSummary)
     const { counts, unreadCounts } = await this.getMessageCounts()
@@ -194,20 +194,7 @@ export class MailAccountService extends Service {
   }
 
   private async getMessageCounts(): Promise<{ counts: Record<MailFolder, number>, unreadCounts: Record<MailFolder, number> }> {
-    const rows = await this.ctx.database.get('mail_message', {})
-    const counts = createEmptyFolderCounts()
-    const unreadCounts = createEmptyFolderCounts()
-    for (const message of rows) {
-      counts[message.folder]++
-      if (message.unread)
-        unreadCounts[message.folder]++
-      if (message.starred && message.folder !== 'trash') {
-        counts.starred++
-        if (message.unread)
-          unreadCounts.starred++
-      }
-    }
-    return { counts, unreadCounts }
+    return countMessages(await this.ctx.database.get('mail_message', {}))
   }
 
   private async getMessage(id: string): Promise<MailMessageDetail> {
@@ -254,22 +241,19 @@ export class MailAccountService extends Service {
   }
 
   private async markMessagesRead(payload: MailMessagesMarkReadPayload): Promise<MailMessagesMarkReadReply> {
-    const ids = [...new Set(payload.ids.filter(id => typeof id === 'string' && id))]
-    if (!ids.length)
-      return { messages: [] }
-    if (ids.length > 200)
-      throw new Error('At most 200 messages can be marked as read at once.')
-    const rows = await this.ctx.database.get('mail_message', { id: { $in: ids } })
-    const unread = rows.filter(message => message.unread)
-    if (!unread.length)
-      return { messages: rows.map(toMessageSummary) }
-    await this.ctx.database.set('mail_message', { id: { $in: unread.map(message => message.id) } }, { unread: false })
-    const updated = unread.map(message => ({ ...message, unread: false }))
-    const accountIds = [...new Set(updated.map(message => message.accountId))]
-    this.ctx.emit('link/send', 'mail-message.changed', { accountIds, refreshedAt: Date.now() })
-    void this.syncMessagesRead(updated)
-    const updatedById = new Map(updated.map(message => [message.id, message]))
-    return { messages: rows.map(message => toMessageSummary(updatedById.get(message.id) ?? message)) }
+    const folder = payload.folder
+    const query = payload.query?.trim().toLowerCase() ?? ''
+    const rows = await this.ctx.database.get('mail_message', {})
+    const unread = selectUnreadMessages(rows, folder, query)
+    if (unread.length) {
+      await this.ctx.database.set('mail_message', { id: { $in: unread.map(message => message.id) } }, { unread: false })
+      for (const message of unread)
+        message.unread = false
+      const accountIds = [...new Set(unread.map(message => message.accountId))]
+      this.ctx.emit('link/send', 'mail-message.changed', { accountIds, refreshedAt: Date.now() })
+      void this.syncMessagesRead(unread)
+    }
+    return { updated: unread.length, unreadCounts: countMessages(rows).unreadCounts }
   }
 
   private async syncMessagesRead(messages: MailMessageRow[]): Promise<void> {
@@ -682,19 +666,28 @@ function createEmptyFolderCounts(): Record<MailFolder, number> {
   }
 }
 
+function countMessages(messages: readonly MailMessageRow[]): { counts: Record<MailFolder, number>, unreadCounts: Record<MailFolder, number> } {
+  const counts = createEmptyFolderCounts()
+  const unreadCounts = createEmptyFolderCounts()
+  for (const message of messages) {
+    counts[message.folder]++
+    if (message.unread)
+      unreadCounts[message.folder]++
+    if (message.starred && message.folder !== 'trash') {
+      counts.starred++
+      if (message.unread)
+        unreadCounts.starred++
+    }
+  }
+  return { counts, unreadCounts }
+}
+
 function normalizeMessageLimit(value: number | undefined): number {
   if (value === undefined)
     return 100
   if (!Number.isFinite(value))
     return 100
   return Math.max(1, Math.min(200, Math.trunc(value)))
-}
-
-function messageSearchText(message: MailMessageRow): string {
-  const addresses = [message.sender, ...message.to, ...message.cc]
-    .map(address => `${address.name ?? ''} ${address.address}`)
-    .join(' ')
-  return `${addresses} ${message.subject} ${message.preview}`.toLowerCase()
 }
 
 function toMessageSummary(message: MailMessageRow): MailMessageSummary {
