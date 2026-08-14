@@ -4,6 +4,7 @@
       - app/electron
       - packages/webui
       - packages/ui
+      - packages/tray
       - packages/schemastery
     pipeline:
       build:

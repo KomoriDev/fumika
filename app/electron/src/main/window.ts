@@ -1,14 +1,9 @@
 import type { Context } from 'cordis'
-import type { BrowserWindowConstructorOptions, IpcMainEvent } from 'electron'
+import type { IpcMainEvent } from 'electron'
 import process from 'node:process'
 import { Service } from 'cordis'
 import { BrowserWindow, ipcMain, shell } from 'electron'
-
-export interface RuntimeEnvironment {
-  preloadPath: string
-  rendererUrl?: string
-  rendererFile: string
-}
+import { createRendererWebPreferences, loadRendererSurface } from './renderer-window'
 
 export interface Config {
   width?: number
@@ -99,15 +94,6 @@ export default class WindowService extends Service<Config> {
   private async createWindow() {
     const isDevelopment = Boolean(this.ctx.env.rendererUrl)
 
-    const webPreferences: BrowserWindowConstructorOptions['webPreferences'] = {
-      preload: this.ctx.env.preloadPath,
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-      webSecurity: true,
-      devTools: isDevelopment,
-    }
-
     const window = new BrowserWindow({
       width: this.config.width ?? 1180,
       height: this.config.height ?? 760,
@@ -126,7 +112,7 @@ export default class WindowService extends Service<Config> {
           }
         : {}),
       backgroundColor: '#f4f4f5',
-      webPreferences,
+      webPreferences: createRendererWebPreferences(this.ctx.env),
     })
     this.window = window
 
@@ -157,10 +143,7 @@ export default class WindowService extends Service<Config> {
       })
     }
 
-    if (this.ctx.env.rendererUrl)
-      await window.loadURL(this.ctx.env.rendererUrl)
-    else
-      await window.loadFile(this.ctx.env.rendererFile)
+    await loadRendererSurface(window, this.ctx.env)
     this.sendPendingRoute()
   }
 }

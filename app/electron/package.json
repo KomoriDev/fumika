@@ -29,6 +29,7 @@
     "@fumika/plugin-link-ipc": "workspace:*",
     "@fumika/plugin-state": "workspace:*",
     "@fumika/state": "workspace:*",
+    "@fumika/tray": "workspace:*",
     "@fumika/webui": "workspace:*",
     "@zone-eu/mailsplit": "5.4.15",
     "cordis": "4.0.0-rc.7",

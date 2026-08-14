@@ -1,5 +1,5 @@
 import type { App } from 'electron'
-import type { RuntimeEnvironment } from './window'
+import type { RuntimeEnvironment } from './renderer-window'
 import path from 'node:path'
 import process from 'node:process'
 import { pathToFileURL } from 'node:url'

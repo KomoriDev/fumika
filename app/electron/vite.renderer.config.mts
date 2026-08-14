@@ -15,13 +15,13 @@ export default defineConfig({
     VueDevTools(),
   ],
   resolve: {
-    alias: {
-      '@fumika/webui': webuiEntry,
-      '@': webuiSource,
-    },
+    alias: [
+      { find: /^@fumika\/webui$/, replacement: webuiEntry },
+      { find: '@', replacement: webuiSource },
+    ],
     preserveSymlinks: false,
   },
   optimizeDeps: {
-    exclude: ['@fumika/webui'],
+    exclude: ['@fumika/tray', '@fumika/webui'],
   },
 })

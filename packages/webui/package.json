@@ -4,7 +4,8 @@
   "version": "0.1.0",
   "private": true,
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./style.css": "./src/style.css"
   },
   "scripts": {
     "dev": "vite",

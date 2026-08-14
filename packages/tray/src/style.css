@@ -1,0 +1,19 @@
+@import "@fumika/webui/style.css";
+@source "./";
+
+@layer base {
+  html[data-surface='tray'],
+  html[data-surface='tray'] body,
+  html[data-surface='tray'] #app {
+    background: transparent !important;
+  }
+
+  html[data-surface='tray'] body {
+    margin: 0;
+  }
+
+  html[data-surface='tray'] #vue-inspector-container,
+  html[data-surface='tray'] #__vue-devtools-container__ {
+    display: none !important;
+  }
+}
